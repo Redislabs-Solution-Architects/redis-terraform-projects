@@ -3,300 +3,376 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redis Enterprise Active-Active Monitor</title>
+    <title>Redis Enterprise Continuous Availability Demo</title>
     <style>
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            padding: 20px;
+            font-family: "SF Pro Display", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(27, 137, 255, 0.18), transparent 30%),
+                radial-gradient(circle at top right, rgba(255, 140, 66, 0.18), transparent 30%),
+                linear-gradient(135deg, #09203f 0%, #1f3b73 45%, #f2f6ff 45%, #f7f3ea 100%);
+            color: #10213b;
+            min-height: 100vh;
+            padding: 24px;
         }
-        
+
         .container {
-            max-width: 1800px;
             margin: 0 auto;
+            max-width: 1700px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 18px;
+            box-shadow: 0 24px 50px rgba(10, 32, 63, 0.18);
+            margin-bottom: 24px;
+            padding: 26px 32px;
+        }
+
+        h1 {
+            color: #0d3b66;
+            font-size: 30px;
+            margin-bottom: 10px;
+        }
+
+        .subhead {
+            color: #4c5d78;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .top-row {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            justify-content: space-between;
+            margin-top: 18px;
+        }
+
+        .controls {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .controls label {
+            color: #355070;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .controls select {
+            background: #ffffff;
+            border: 2px solid #8fb8de;
+            border-radius: 999px;
+            color: #143b63;
+            font-size: 14px;
+            padding: 8px 14px;
+        }
+
+        .hero-metrics {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: 22px;
+        }
+
+        .hero-card,
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            border-radius: 18px;
+            box-shadow: 0 18px 40px rgba(9, 32, 63, 0.12);
+            padding: 24px;
+        }
+
+        .hero-card small {
+            color: #6b7b93;
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .hero-card .value {
+            color: #0d3b66;
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .hero-card .hint {
+            color: #5d708d;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .status-badge {
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            padding: 7px 12px;
+            text-transform: uppercase;
+        }
+
+        .status-primary,
+        .status-healthy {
+            background: #d7f7e7;
+            color: #0d8a4f;
+        }
+
+        .status-failed-over,
+        .status-warning {
+            background: #fff2cf;
+            color: #b56b00;
+        }
+
+        .status-failed-back {
+            background: #d9ebff;
+            color: #0f5fb2;
+        }
+
+        .status-error,
+        .status-unavailable {
+            background: #ffe2e2;
+            color: #be1e2d;
         }
 
         .main-layout {
             display: grid;
-            grid-template-columns: 1fr 400px;
-            gap: 20px;
+            gap: 24px;
+            grid-template-columns: minmax(0, 1.5fr) minmax(360px, 0.9fr);
         }
 
-        .content-area {
-            min-width: 0;
-        }
-
-        .sidebar {
-            min-width: 0;
-        }
-        
-        header {
-            background: white;
-            padding: 20px 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        
-        h1 {
-            color: #667eea;
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-        
-        .controls {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            margin-top: 15px;
-        }
-        
-        .controls label {
-            font-weight: 600;
-        }
-        
-        .controls select {
-            padding: 8px 12px;
-            border: 2px solid #667eea;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        
-        .status-healthy {
-            background: #10b981;
-            color: white;
-        }
-        
-        .status-error {
-            background: #ef4444;
-            color: white;
-        }
-        
-        .status-warning {
-            background: #f59e0b;
-            color: white;
-        }
-        
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
             gap: 20px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             margin-bottom: 20px;
         }
-        
-        .card {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
+
         .card h2 {
-            color: #667eea;
-            font-size: 20px;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
+            border-bottom: 2px solid #dbe7f4;
+            color: #0d3b66;
+            font-size: 19px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
         }
-        
+
         .metric {
+            align-items: flex-start;
+            border-bottom: 1px solid #ebf1f8;
             display: flex;
             justify-content: space-between;
             padding: 10px 0;
-            border-bottom: 1px solid #e5e7eb;
         }
-        
+
         .metric:last-child {
             border-bottom: none;
         }
-        
+
         .metric-label {
-            font-weight: 600;
-            color: #6b7280;
-        }
-        
-        .metric-value {
+            color: #60718a;
+            font-size: 14px;
             font-weight: 700;
-            color: #111827;
         }
-        
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #6b7280;
-        }
-        
-        .error {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-        
-        .timestamp {
+
+        .metric-value {
+            color: #10213b;
+            font-size: 14px;
+            font-weight: 800;
             text-align: right;
-            color: #6b7280;
+        }
+
+        .section-copy {
+            color: #5d708d;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 18px;
+        }
+
+        .demo-actions {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-bottom: 20px;
+        }
+
+        .demo-actions button {
+            border: none;
+            border-radius: 14px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            min-height: 56px;
+            padding: 12px 16px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .demo-actions button:hover:not(:disabled) {
+            box-shadow: 0 16px 28px rgba(9, 32, 63, 0.18);
+            transform: translateY(-2px);
+        }
+
+        .demo-actions button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #0d8a4f, #1ab86f);
+        }
+
+        .btn-blackout {
+            background: linear-gradient(135deg, #be1e2d, #ed5a5a);
+        }
+
+        .btn-restore {
+            background: linear-gradient(135deg, #0f5fb2, #3e8be0);
+        }
+
+        .btn-reset {
+            background: linear-gradient(135deg, #4c5d78, #7787a1);
+        }
+
+        .demo-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-bottom: 18px;
+        }
+
+        .demo-stat {
+            background: #f5f9ff;
+            border-radius: 14px;
+            padding: 14px;
+        }
+
+        .demo-stat small {
+            color: #6c7e95;
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .demo-stat strong {
+            color: #123a62;
+            display: block;
+            font-size: 20px;
+            line-height: 1.3;
+        }
+
+        .event-log {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        .event-entry {
+            background: #f7fbff;
+            border-left: 4px solid #8fb8de;
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .event-entry.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .event-entry.error {
+            border-left-color: #dc2626;
+        }
+
+        .event-meta {
+            color: #6b7b93;
+            display: flex;
+            font-size: 11px;
+            font-weight: 700;
+            gap: 10px;
+            letter-spacing: 0.04em;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .event-message {
+            color: #143b63;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .event-detail {
+            color: #5d708d;
+            font-size: 12px;
+            margin-top: 6px;
+            word-break: break-word;
+        }
+
+        .timestamp {
+            color: #6b7b93;
             font-size: 12px;
             margin-top: 10px;
-        }
-        
-        .crdb-section {
-            grid-column: 1 / -1;
-        }
-        
-        .region-comparison {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            text-align: right;
         }
 
-        /* Failure Simulation Panel */
-        .failure-sim-panel {
-            background: white;
-            padding: 25px;
+        .loading,
+        .empty-state {
+            color: #6b7b93;
+            padding: 28px 12px;
+            text-align: center;
+        }
+
+        .error {
+            background: #ffe7e7;
             border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 20px;
+            color: #be1e2d;
+            padding: 14px;
         }
 
-        .failure-sim-panel h2 {
-            color: #dc2626;
-            font-size: 20px;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #dc2626;
-            padding-bottom: 10px;
-        }
-
-        .sim-section {
-            margin-bottom: 25px;
-        }
-
-        .sim-section h3 {
-            font-size: 14px;
-            color: #6b7280;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .sim-dropdown {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #d1d5db;
-            border-radius: 5px;
-            font-size: 14px;
-            margin-bottom: 10px;
-            background: white;
-        }
-
-        .sim-button {
-            width: 100%;
-            padding: 18px 24px;
-            font-size: 16px;
-            font-weight: 700;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .sim-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        }
-
-        .sim-button:active {
-            transform: translateY(0);
-        }
-
-        .sim-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-node-failure {
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            color: white;
-            margin-bottom: 15px;
-        }
-
-        .btn-node-failure:hover:not(:disabled) {
-            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-        }
-
-        .btn-region-failure {
-            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-            color: white;
-        }
-
-        .btn-region-failure:hover:not(:disabled) {
-            background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
-        }
-
-        .sim-info {
-            background: #fef3c7;
-            border-left: 4px solid #f59e0b;
-            padding: 12px;
-            margin-top: 15px;
-            border-radius: 4px;
+        .detail-strip {
+            background: linear-gradient(135deg, #eff6ff, #f8fafc);
+            border: 1px solid #dbe7f4;
+            border-radius: 14px;
+            color: #395270;
             font-size: 13px;
-            color: #92400e;
+            line-height: 1.5;
+            margin-bottom: 18px;
+            padding: 14px 16px;
         }
 
-        .sim-warning {
-            background: #fee2e2;
-            border-left: 4px solid #dc2626;
-            padding: 12px;
-            margin-top: 15px;
-            border-radius: 4px;
-            font-size: 13px;
-            color: #991b1b;
+        .detail-strip strong {
+            color: #123a62;
         }
 
-        .node-count {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 5px;
-        }
-
-        @media (max-width: 1200px) {
+        @media (max-width: 1280px) {
             .main-layout {
                 grid-template-columns: 1fr;
             }
-
-            .failure-sim-panel {
-                position: relative;
-                top: 0;
-            }
         }
 
-        @media (max-width: 768px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-            .region-comparison {
+        @media (max-width: 900px) {
+            .hero-metrics,
+            .grid,
+            .demo-grid,
+            .demo-actions {
                 grid-template-columns: 1fr;
             }
         }
@@ -305,84 +381,117 @@
 <body>
     <div class="container">
         <header>
-            <h1>🔴 Redis Enterprise Active-Active Monitor</h1>
-            <p>Database: <strong>{{ config.database_name }}</strong></p>
-            <div class="controls">
-                <label for="refresh-interval">Auto-Refresh:</label>
-                <select id="refresh-interval">
-                    <option value="5" {% if config.refresh_interval == 5 %}selected{% endif %}>5 seconds</option>
-                    <option value="10">10 seconds</option>
-                    <option value="30">30 seconds</option>
-                    <option value="60">1 minute</option>
-                    <option value="0">Disabled</option>
-                </select>
+            <h1>Continuous Availability Demo</h1>
+            <p class="subhead">
+                Monitoring the dual-region Redis Enterprise deployment while running a real redis-py failover client
+                that prefers Region 1 and automatically fails over to Region 2 during a simulated Region 1 outage.
+            </p>
+            <div class="top-row">
+                <div class="controls">
+                    <label for="refresh-interval">Auto-Refresh</label>
+                    <select id="refresh-interval">
+                        <option value="5" {% if config.refresh_interval == 5 %}selected{% endif %}>5 seconds</option>
+                        <option value="10">10 seconds</option>
+                        <option value="30">30 seconds</option>
+                        <option value="60">60 seconds</option>
+                        <option value="0">Disabled</option>
+                    </select>
+                </div>
                 <span id="last-update" class="status-badge status-healthy">Live</span>
+            </div>
+            <div class="hero-metrics">
+                <div class="hero-card">
+                    <small>Database</small>
+                    <div class="value">{{ config.database_name }}</div>
+                    <div class="hint">Preferred region: {{ config.failover.preferred_region }}</div>
+                </div>
+                <div class="hero-card">
+                    <small>Redis Endpoints</small>
+                    <div class="value">{{ config.regions.region1.redis_endpoint }}</div>
+                    <div class="hint">Fallback: {{ config.regions.region2.redis_endpoint }}</div>
+                </div>
+                <div class="hero-card">
+                    <small>Health Check</small>
+                    <div class="value">{{ "Lag-Aware" if config.failover.use_lag_aware_health_check else "Ping" }}</div>
+                    <div class="hint">Auto failback every {{ config.failover.auto_fallback_interval_seconds }}s</div>
+                </div>
             </div>
         </header>
 
         <div class="main-layout">
-            <div class="content-area">
+            <div>
+                <div class="card" style="margin-bottom: 20px;">
+                    <h2>Redis Client Failover Demo</h2>
+                    <p class="section-copy">
+                        This flow writes and reads a synthetic key through a single redis-py `MultiDBClient`. Use the controls
+                        to simulate a Region 1 outage for this app instance only. The Redis deployment itself is left untouched.
+                    </p>
+                    <div class="detail-strip">
+                        <strong>Demo key:</strong> <span id="demo-key">Loading...</span><br>
+                        <strong>Workload cadence:</strong> {{ config.demo.workload_interval_seconds }}s synthetic set/get cycle
+                    </div>
+                    <div class="demo-actions">
+                        <button id="btn-start-demo" class="btn-start">Start Demo</button>
+                        <button id="btn-simulate-outage" class="btn-blackout">Simulate Region 1 Outage</button>
+                        <button id="btn-restore-region1" class="btn-restore">Restore Region 1</button>
+                        <button id="btn-reset-demo" class="btn-reset">Reset Demo</button>
+                    </div>
+                    <div id="demo-summary" class="demo-grid">
+                        <div class="demo-stat">
+                            <small>Active Region</small>
+                            <strong id="demo-active-region">Loading...</strong>
+                        </div>
+                        <div class="demo-stat">
+                            <small>Failover State</small>
+                            <strong id="demo-state">Loading...</strong>
+                        </div>
+                        <div class="demo-stat">
+                            <small>Last Successful Operation</small>
+                            <strong id="demo-last-success">Loading...</strong>
+                        </div>
+                        <div class="demo-stat">
+                            <small>Blackout Flags</small>
+                            <strong id="demo-blackouts">None</strong>
+                        </div>
+                    </div>
+                    <div id="demo-endpoint" class="detail-strip">Resolving active Redis endpoint...</div>
+                    <div id="demo-metrics" class="demo-grid"></div>
+                </div>
+
                 <div class="grid">
-                    <!-- Region 1 Cluster -->
                     <div class="card">
-                        <h2>🌍 Region 1: {{ config.regions.region1.name }}</h2>
+                        <h2>Region 1 Cluster</h2>
                         <div id="region1-cluster" class="loading">Loading...</div>
                     </div>
-
-                    <!-- Region 2 Cluster -->
                     <div class="card">
-                        <h2>🌍 Region 2: {{ config.regions.region2.name }}</h2>
+                        <h2>Region 2 Cluster</h2>
                         <div id="region2-cluster" class="loading">Loading...</div>
                     </div>
-
-                    <!-- Region 1 Database -->
                     <div class="card">
-                        <h2>💾 Database: Region 1</h2>
+                        <h2>Region 1 Database</h2>
                         <div id="region1-database" class="loading">Loading...</div>
                     </div>
-
-                    <!-- Region 2 Database -->
                     <div class="card">
-                        <h2>💾 Database: Region 2</h2>
+                        <h2>Region 2 Database</h2>
                         <div id="region2-database" class="loading">Loading...</div>
                     </div>
+                </div>
 
-                    <!-- CRDB Status -->
-                    <div class="card crdb-section">
-                        <h2>🔄 Active-Active CRDB Status</h2>
-                        <div id="crdb-status" class="loading">Loading...</div>
-                    </div>
+                <div class="card">
+                    <h2>Active-Active CRDB Status</h2>
+                    <div id="crdb-status" class="loading">Loading...</div>
                 </div>
             </div>
 
-            <div class="sidebar">
-                <div class="failure-sim-panel">
-                    <h2>⚠️ Failure Simulation</h2>
-
-                    <!-- Node Failure Section -->
-                    <div class="sim-section">
-                        <h3>Node Failure</h3>
-                        <select id="node-selector" class="sim-dropdown">
-                            <option value="">Loading nodes...</option>
-                        </select>
-                        <div class="node-count" id="node-count">Detecting nodes...</div>
-                        <button id="btn-node-failure" class="sim-button btn-node-failure" disabled>
-                            ⚡ Simulate Node Failure
-                        </button>
-                        <div class="sim-info">
-                            <strong>Info:</strong> This will cordon and drain the selected EKS node running Redis Enterprise pods.
-                        </div>
-                    </div>
-
-                    <!-- Region Failure Section -->
-                    <div class="sim-section">
-                        <h3>Region Failure</h3>
-                        <button id="btn-region-failure" class="sim-button btn-region-failure">
-                            💥 Simulate Region Failure
-                        </button>
-                        <div class="sim-warning">
-                            <strong>Warning:</strong> This feature is coming soon. It will simulate a complete region outage.
-                        </div>
+            <div>
+                <div class="card">
+                    <h2>Demo Event Log</h2>
+                    <p class="section-copy">
+                        Event history records client initialization, simulated outage actions, failover/failback transitions,
+                        and any workload errors reported by the redis-py failover path.
+                    </p>
+                    <div id="demo-events" class="event-log">
+                        <div class="empty-state">Waiting for demo activity...</div>
                     </div>
                 </div>
             </div>
@@ -393,37 +502,47 @@
         let refreshInterval = {{ config.refresh_interval }};
         let intervalId = null;
 
-        // Format bytes to human readable
         function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            if (!bytes) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const index = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${(bytes / Math.pow(1024, index)).toFixed(2)} ${units[index]}`;
         }
 
-        // Format number with commas
-        function formatNumber(num) {
-            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        function formatNumber(value) {
+            return new Intl.NumberFormat().format(value || 0);
         }
 
-        // Render cluster info
+        function badgeClass(status) {
+            if (!status) return 'status-warning';
+            const normalized = status.toLowerCase();
+            if (normalized.includes('active') || normalized.includes('healthy') || normalized.includes('valid')) {
+                return 'status-healthy';
+            }
+            if (normalized.includes('fail') || normalized.includes('error') || normalized.includes('invalid')) {
+                return 'status-error';
+            }
+            return 'status-warning';
+        }
+
+        function formatTimestamp(value) {
+            if (!value) return 'N/A';
+            return new Date(value).toLocaleTimeString();
+        }
+
         function renderCluster(data, elementId) {
             const element = document.getElementById(elementId);
-            
             if (data.cluster.error) {
-                element.innerHTML = `<div class="error">Error: ${data.cluster.error}</div>`;
+                element.innerHTML = `<div class="error">${data.cluster.error}</div>`;
                 return;
             }
 
             const cluster = data.cluster;
-            const nodes = data.nodes;
-            const nodeCount = Array.isArray(nodes) ? nodes.length : 0;
-
+            const nodeCount = Array.isArray(data.nodes) ? data.nodes.length : 0;
             element.innerHTML = `
                 <div class="metric">
                     <span class="metric-label">Status</span>
-                    <span class="metric-value"><span class="status-badge status-healthy">Healthy</span></span>
+                    <span class="metric-value"><span class="status-badge ${badgeClass(cluster.status || 'healthy')}">${cluster.status || 'Healthy'}</span></span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">Nodes</span>
@@ -433,61 +552,59 @@
                     <span class="metric-label">Version</span>
                     <span class="metric-value">${cluster.software_version || 'N/A'}</span>
                 </div>
-                <div class="timestamp">Updated: ${new Date(data.timestamp).toLocaleTimeString()}</div>
+                <div class="timestamp">Updated ${formatTimestamp(data.timestamp)}</div>
             `;
         }
 
-        // Render database info
         function renderDatabase(data, elementId) {
             const element = document.getElementById(elementId);
-            
             if (data.database.error) {
-                element.innerHTML = `<div class="error">Error: ${data.database.error}</div>`;
+                element.innerHTML = `<div class="error">${data.database.error}</div>`;
                 return;
             }
 
             const db = data.database;
-
             element.innerHTML = `
                 <div class="metric">
                     <span class="metric-label">Status</span>
-                    <span class="metric-value"><span class="status-badge status-${db.status === 'active' ? 'healthy' : 'warning'}">${db.status || 'Unknown'}</span></span>
+                    <span class="metric-value"><span class="status-badge ${badgeClass(db.status)}">${db.status || 'Unknown'}</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Port</span>
+                    <span class="metric-value">${db.port || {{ config.redis.port }}}</span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">Memory Used</span>
-                    <span class="metric-value">${formatBytes(db.memory_size || 0)}</span>
+                    <span class="metric-value">${formatBytes(db.memory_size)}</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Ops/sec</span>
+                    <span class="metric-label">Requests</span>
                     <span class="metric-value">${formatNumber(Math.round(db.total_req || 0))}</span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">Connections</span>
                     <span class="metric-value">${formatNumber(db.conns || 0)}</span>
                 </div>
-                <div class="timestamp">Updated: ${new Date(data.timestamp).toLocaleTimeString()}</div>
+                <div class="timestamp">Updated ${formatTimestamp(data.timestamp)}</div>
             `;
         }
 
-        // Render CRDB status
         function renderCRDB(data) {
             const element = document.getElementById('crdb-status');
-            
             const region1 = data.regions.region1;
             const region2 = data.regions.region2;
 
             if (region1.error || region2.error) {
-                element.innerHTML = `<div class="error">Error loading CRDB status</div>`;
+                element.innerHTML = `<div class="error">Could not load CRDB status from both regions.</div>`;
                 return;
             }
 
             element.innerHTML = `
-                <div class="region-comparison">
+                <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 0;">
                     <div>
-                        <h3 style="color: #667eea; margin-bottom: 10px;">Region 1</h3>
                         <div class="metric">
-                            <span class="metric-label">Replication Status</span>
-                            <span class="metric-value"><span class="status-badge status-healthy">Active</span></span>
+                            <span class="metric-label">Region 1 Status</span>
+                            <span class="metric-value"><span class="status-badge ${badgeClass(region1.status)}">${region1.status || 'Unknown'}</span></span>
                         </div>
                         <div class="metric">
                             <span class="metric-label">Shards</span>
@@ -499,10 +616,9 @@
                         </div>
                     </div>
                     <div>
-                        <h3 style="color: #667eea; margin-bottom: 10px;">Region 2</h3>
                         <div class="metric">
-                            <span class="metric-label">Replication Status</span>
-                            <span class="metric-value"><span class="status-badge status-healthy">Active</span></span>
+                            <span class="metric-label">Region 2 Status</span>
+                            <span class="metric-value"><span class="status-badge ${badgeClass(region2.status)}">${region2.status || 'Unknown'}</span></span>
                         </div>
                         <div class="metric">
                             <span class="metric-label">Shards</span>
@@ -514,19 +630,86 @@
                         </div>
                     </div>
                 </div>
-                <div class="timestamp">Updated: ${new Date(data.timestamp).toLocaleTimeString()}</div>
+                <div class="timestamp">Updated ${formatTimestamp(data.timestamp)}</div>
             `;
         }
 
-        // Fetch all data
+        function renderDemoMetrics(status) {
+            const metrics = document.getElementById('demo-metrics');
+            metrics.innerHTML = Object.entries(status.stats).map(([region, regionStats]) => `
+                <div class="demo-stat">
+                    <small>${region}</small>
+                    <strong>${regionStats.successes} success / ${regionStats.failures} failure</strong>
+                    <div class="hint" style="margin-top: 6px; color: #5d708d; font-size: 13px;">
+                        Last command: ${regionStats.last_command || 'N/A'}<br>
+                        Last latency: ${regionStats.last_latency_ms !== null ? `${regionStats.last_latency_ms} ms` : 'N/A'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderDemoEvents(status) {
+            const events = document.getElementById('demo-events');
+            if (!status.event_log || status.event_log.length === 0) {
+                events.innerHTML = '<div class="empty-state">Waiting for demo activity...</div>';
+                return;
+            }
+
+            events.innerHTML = status.event_log.map((event) => `
+                <div class="event-entry ${event.level}">
+                    <div class="event-meta">
+                        <span>${event.event}</span>
+                        <span>${formatTimestamp(event.timestamp)}</span>
+                    </div>
+                    <div class="event-message">${event.message}</div>
+                    <div class="event-detail">${Object.entries(event.details || {}).map(([key, value]) => `${key}: ${value}`).join(' · ')}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderDemoStatus(status) {
+            document.getElementById('demo-key').textContent = status.demo_key;
+            document.getElementById('demo-active-region').textContent = status.active_region || 'No active region yet';
+            document.getElementById('demo-state').innerHTML = `<span class="status-badge status-${status.state || 'warning'}">${status.state || 'idle'}</span>`;
+            document.getElementById('demo-last-success').textContent = formatTimestamp(status.last_success_at);
+            document.getElementById('demo-blackouts').textContent = status.blackout_regions.length ? status.blackout_regions.join(', ') : 'None';
+            document.getElementById('demo-endpoint').innerHTML = `
+                <strong>Active endpoint:</strong> ${status.active_endpoint || 'Pending client activity'}<br>
+                <strong>Last value:</strong> ${status.last_read_value || 'No successful workload cycle yet'}<br>
+                <strong>Last error:</strong> ${status.last_error || 'None'}<br>
+                <strong>Health check mode:</strong> ${status.health_check_mode}
+            `;
+
+            renderDemoMetrics(status);
+            renderDemoEvents(status);
+
+            document.getElementById('btn-start-demo').disabled = status.demo_running;
+            document.getElementById('btn-simulate-outage').disabled = !status.demo_running || status.blackout_regions.includes('region1');
+            document.getElementById('btn-restore-region1').disabled = !status.blackout_regions.includes('region1');
+        }
+
+        async function postAction(url) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`Request failed: ${response.status}`);
+            }
+            return response.json();
+        }
+
         async function fetchData() {
             try {
-                const [region1Cluster, region2Cluster, region1DB, region2DB, crdb] = await Promise.all([
-                    fetch('/api/cluster/region1').then(r => r.json()),
-                    fetch('/api/cluster/region2').then(r => r.json()),
-                    fetch('/api/database/region1').then(r => r.json()),
-                    fetch('/api/database/region2').then(r => r.json()),
-                    fetch('/api/crdb').then(r => r.json())
+                const [region1Cluster, region2Cluster, region1DB, region2DB, crdb, demoStatus] = await Promise.all([
+                    fetch('/api/cluster/region1').then((response) => response.json()),
+                    fetch('/api/cluster/region2').then((response) => response.json()),
+                    fetch('/api/database/region1').then((response) => response.json()),
+                    fetch('/api/database/region2').then((response) => response.json()),
+                    fetch('/api/crdb').then((response) => response.json()),
+                    fetch('/api/demo/status').then((response) => response.json())
                 ]);
 
                 renderCluster(region1Cluster, 'region1-cluster');
@@ -534,130 +717,48 @@
                 renderDatabase(region1DB, 'region1-database');
                 renderDatabase(region2DB, 'region2-database');
                 renderCRDB(crdb);
+                renderDemoStatus(demoStatus);
 
                 document.getElementById('last-update').textContent = 'Live';
                 document.getElementById('last-update').className = 'status-badge status-healthy';
             } catch (error) {
-                console.error('Error fetching data:', error);
+                console.error('Error fetching data', error);
                 document.getElementById('last-update').textContent = 'Error';
                 document.getElementById('last-update').className = 'status-badge status-error';
             }
         }
 
-        // Handle refresh interval change
-        document.getElementById('refresh-interval').addEventListener('change', function(e) {
-            refreshInterval = parseInt(e.target.value);
-
+        document.getElementById('refresh-interval').addEventListener('change', (event) => {
+            refreshInterval = parseInt(event.target.value, 10);
             if (intervalId) {
                 clearInterval(intervalId);
             }
-
             if (refreshInterval > 0) {
                 intervalId = setInterval(fetchData, refreshInterval * 1000);
             }
         });
 
-        // Fetch nodes for failure simulation
-        async function fetchNodes() {
-            try {
-                const response = await fetch('/api/nodes/{{ config.deployment_region }}');
-                const data = await response.json();
-
-                const nodeSelector = document.getElementById('node-selector');
-                const nodeCount = document.getElementById('node-count');
-                const btnNodeFailure = document.getElementById('btn-node-failure');
-
-                if (data.error) {
-                    nodeSelector.innerHTML = '<option value="">Error loading nodes</option>';
-                    nodeCount.textContent = 'Error: ' + data.error;
-                    btnNodeFailure.disabled = true;
-                    return;
-                }
-
-                if (data.nodes && data.nodes.length > 0) {
-                    nodeSelector.innerHTML = '<option value="">Select a node...</option>';
-                    data.nodes.forEach(node => {
-                        const option = document.createElement('option');
-                        option.value = node.name;
-                        option.textContent = `${node.name} (${node.pod_count} Redis pods)`;
-                        nodeSelector.appendChild(option);
-                    });
-                    nodeCount.textContent = `Found ${data.nodes.length} node(s) with Redis Enterprise pods`;
-                } else {
-                    nodeSelector.innerHTML = '<option value="">No nodes found</option>';
-                    nodeCount.textContent = 'No nodes with Redis Enterprise pods found';
-                    btnNodeFailure.disabled = true;
-                }
-            } catch (error) {
-                console.error('Error fetching nodes:', error);
-                document.getElementById('node-selector').innerHTML = '<option value="">Error loading nodes</option>';
-                document.getElementById('node-count').textContent = 'Error: ' + error.message;
-            }
-        }
-
-        // Enable/disable node failure button based on selection
-        document.getElementById('node-selector').addEventListener('change', function(e) {
-            const btnNodeFailure = document.getElementById('btn-node-failure');
-            btnNodeFailure.disabled = !e.target.value;
+        document.getElementById('btn-start-demo').addEventListener('click', async () => {
+            await postAction('/api/demo/start');
+            await fetchData();
         });
 
-        // Handle node failure simulation
-        document.getElementById('btn-node-failure').addEventListener('click', async function() {
-            const nodeSelector = document.getElementById('node-selector');
-            const nodeName = nodeSelector.value;
-
-            if (!nodeName) {
-                alert('Please select a node first');
-                return;
-            }
-
-            if (!confirm('Are you sure you want to simulate failure on node: ' + nodeName + '?\\n\\nThis will cordon and drain the node.')) {
-                return;
-            }
-
-            const btnNodeFailure = document.getElementById('btn-node-failure');
-            btnNodeFailure.disabled = true;
-            btnNodeFailure.textContent = '⏳ Simulating failure...';
-
-            try {
-                const response = await fetch('/api/simulate/node-failure', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        node_name: nodeName,
-                        region: '{{ config.deployment_region }}'
-                    })
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    alert('✅ Node failure simulated successfully!\\n\\nNode: ' + nodeName + '\\nStatus: ' + result.status + '\\n\\nThe node has been cordoned and pods are being drained.');
-                    // Refresh node list
-                    await fetchNodes();
-                } else {
-                    alert('❌ Error: ' + (result.error || 'Unknown error'));
-                }
-            } catch (error) {
-                alert('❌ Error simulating node failure: ' + error.message);
-            } finally {
-                btnNodeFailure.disabled = false;
-                btnNodeFailure.textContent = '⚡ Simulate Node Failure';
-            }
+        document.getElementById('btn-simulate-outage').addEventListener('click', async () => {
+            await postAction('/api/demo/simulate-region1-outage');
+            await fetchData();
         });
 
-        // Handle region failure simulation (placeholder)
-        document.getElementById('btn-region-failure').addEventListener('click', function() {
-            alert('⚠️ Region Failure Simulation\\n\\nThis feature is coming soon!\\n\\nIt will simulate a complete region outage by affecting all nodes in the region.');
+        document.getElementById('btn-restore-region1').addEventListener('click', async () => {
+            await postAction('/api/demo/restore-region1');
+            await fetchData();
         });
 
-        // Initial load
+        document.getElementById('btn-reset-demo').addEventListener('click', async () => {
+            await postAction('/api/demo/reset');
+            await fetchData();
+        });
+
         fetchData();
-        fetchNodes(); // Load nodes for failure simulation
-
-        // Start auto-refresh
         if (refreshInterval > 0) {
             intervalId = setInterval(fetchData, refreshInterval * 1000);
         }

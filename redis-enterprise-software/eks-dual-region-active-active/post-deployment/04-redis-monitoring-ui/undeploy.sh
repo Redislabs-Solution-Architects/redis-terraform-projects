@@ -3,42 +3,59 @@
 # REDIS ENTERPRISE MONITORING UI CLEANUP SCRIPT
 #==============================================================================
 
-set -e
+set -euo pipefail
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Load configuration
-CONFIG_FILE="config.yaml"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/config.yaml"
+ENV_CONFIG="$SCRIPT_DIR/../config.env"
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo -e "${RED}Error: config.yaml not found${NC}"
+fail() {
+    echo -e "${RED}❌ $1${NC}" >&2
     exit 1
-fi
+}
 
-DEPLOYMENT_REGION=$(grep "deployment_region:" $CONFIG_FILE | awk '{print $2}')
-NAMESPACE=$(grep "namespace:" $CONFIG_FILE | awk '{print $2}')
+command -v aws >/dev/null 2>&1 || fail "aws is required"
+command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
+command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 
-if [ "$DEPLOYMENT_REGION" == "region1" ]; then
-    CONTEXT="region1-new"
-elif [ "$DEPLOYMENT_REGION" == "region2" ]; then
-    CONTEXT="region2-new"
+[ -f "$ENV_CONFIG" ] || fail "config.env not found. Run terraform apply first."
+[ -f "$CONFIG_FILE" ] || fail "config.yaml not found."
+
+source "$ENV_CONFIG"
+
+DEPLOYMENT_REGION="$(python3 - "$CONFIG_FILE" <<'PY'
+import sys
+import yaml
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    data = yaml.safe_load(handle) or {}
+
+print(data.get("deployment_region", "region1"))
+PY
+)"
+if [ "$DEPLOYMENT_REGION" = "region1" ]; then
+    CONTEXT="$REGION1_CONTEXT"
 else
-    echo -e "${RED}Error: Invalid deployment_region in config.yaml${NC}"
-    exit 1
+    CONTEXT="$REGION2_CONTEXT"
 fi
 
-echo -e "${YELLOW}Removing Redis Enterprise Monitoring UI...${NC}"
+echo -e "${YELLOW}Removing Redis Monitoring UI + Failover Demo from $CONTEXT...${NC}"
 
-kubectl delete -f k8s/deployment.yaml --context=$CONTEXT --ignore-not-found=true
-kubectl delete -f k8s/service.yaml --context=$CONTEXT --ignore-not-found=true
-kubectl delete -f k8s/rbac.yaml --context=$CONTEXT --ignore-not-found=true
+aws eks update-kubeconfig --region "$AWS_REGION1" --name "$REGION1_CLUSTER_NAME" --alias "$REGION1_CONTEXT" --profile "$AWS_PROFILE" >/dev/null
+aws eks update-kubeconfig --region "$AWS_REGION2" --name "$REGION2_CLUSTER_NAME" --alias "$REGION2_CONTEXT" --profile "$AWS_PROFILE" >/dev/null
 
-kubectl delete configmap redis-monitoring-ui-code -n $NAMESPACE --context=$CONTEXT --ignore-not-found=true
-kubectl delete configmap redis-monitoring-ui-templates -n $NAMESPACE --context=$CONTEXT --ignore-not-found=true
-kubectl delete configmap redis-monitoring-ui-config -n $NAMESPACE --context=$CONTEXT --ignore-not-found=true
+kubectl delete deployment redis-monitoring-ui -n "$NAMESPACE" --context="$CONTEXT" --ignore-not-found=true
+kubectl delete service redis-monitoring-ui -n "$NAMESPACE" --context="$CONTEXT" --ignore-not-found=true
+kubectl delete rolebinding redis-monitoring-ui -n "$NAMESPACE" --context="$CONTEXT" --ignore-not-found=true
+kubectl delete role redis-monitoring-ui -n "$NAMESPACE" --context="$CONTEXT" --ignore-not-found=true
+kubectl delete serviceaccount redis-monitoring-ui -n "$NAMESPACE" --context="$CONTEXT" --ignore-not-found=true
+kubectl delete configmap redis-monitoring-ui-code -n "$NAMESPACE" --context="$CONTEXT" --ignore-not-found=true
+kubectl delete configmap redis-monitoring-ui-templates -n "$NAMESPACE" --context="$CONTEXT" --ignore-not-found=true
+kubectl delete configmap redis-monitoring-ui-config -n "$NAMESPACE" --context="$CONTEXT" --ignore-not-found=true
 
 echo -e "${GREEN}✓ Cleanup complete${NC}"

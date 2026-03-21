@@ -1,19 +1,21 @@
 #!/bin/bash
-# Validate that all required values can be extracted
+# Validate that the monitoring UI deploy inputs are available.
 
-set -e
+set -euo pipefail
 
-TERRAFORM_DIR="../.."
-cd "$TERRAFORM_DIR"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_CONFIG="$SCRIPT_DIR/../config.env"
 
-echo "Validating Terraform state..."
-terraform output -raw region1 >/dev/null || { echo "❌ Missing region1 output"; exit 1; }
-terraform output -raw region2 >/dev/null || { echo "❌ Missing region2 output"; exit 1; }
-terraform output -raw user_prefix >/dev/null || { echo "❌ Missing user_prefix output"; exit 1; }
+[ -f "$ENV_CONFIG" ] || { echo "❌ Missing post-deployment/config.env"; exit 1; }
 
-echo "Validating terraform.tfvars..."
-grep -q "^redis_namespace" terraform.tfvars || { echo "❌ Missing redis_namespace"; exit 1; }
-grep -q "^region1_kubectl_context" terraform.tfvars || { echo "❌ Missing region1_kubectl_context"; exit 1; }
-grep -q "^region2_kubectl_context" terraform.tfvars || { echo "❌ Missing region2_kubectl_context"; exit 1; }
+source "$ENV_CONFIG"
 
-echo "✅ All required values can be extracted!"
+for var in AWS_PROFILE AWS_REGION1 AWS_REGION2 REGION1_CLUSTER_NAME REGION2_CLUSTER_NAME REGION1_CONTEXT REGION2_CONTEXT NAMESPACE CRDB_NAME REGION1_DB_SUFFIX REGION2_DB_SUFFIX; do
+    [ -n "${!var:-}" ] || { echo "❌ Missing required config value: $var"; exit 1; }
+done
+
+command -v aws >/dev/null 2>&1 || { echo "❌ aws is required"; exit 1; }
+command -v kubectl >/dev/null 2>&1 || { echo "❌ kubectl is required"; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo "❌ python3 is required"; exit 1; }
+
+echo "✅ Monitoring UI deploy inputs look valid."

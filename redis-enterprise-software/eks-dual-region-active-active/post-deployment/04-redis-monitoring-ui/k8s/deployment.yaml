@@ -1,5 +1,6 @@
 #==============================================================================
 # REDIS ENTERPRISE MONITORING UI DEPLOYMENT
+# deploy.sh renders a deployment manifest from this shape with concrete values.
 #==============================================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -19,44 +20,38 @@ spec:
         app: redis-monitoring-ui
     spec:
       serviceAccountName: redis-monitoring-ui
-      
       initContainers:
-        # Install Flask and dependencies
         - name: install-dependencies
           image: python:3.11-slim
           command:
             - /bin/sh
             - -c
             - |
-              pip install --no-cache-dir \
-                flask==3.0.0 \
-                requests==2.31.0 \
-                pyyaml==6.0.1 \
-                kubernetes==28.1.0
-
-              # Copy installed packages to shared volume
+              pip install --no-cache-dir -r /app/requirements.txt
               cp -r /usr/local/lib/python3.11/site-packages/* /app/packages/
           volumeMounts:
+            - name: app-code
+              mountPath: /app/app.py
+              subPath: app.py
+            - name: app-code
+              mountPath: /app/requirements.txt
+              subPath: requirements.txt
             - name: packages
               mountPath: /app/packages
-      
       containers:
         - name: flask-app
           image: python:3.11-slim
           ports:
             - containerPort: 5000
               name: http
-          
           env:
             - name: PYTHONPATH
               value: "/app/packages"
             - name: CONFIG_PATH
               value: "/app/config/config.yaml"
-          
           command:
             - python
             - /app/app.py
-          
           resources:
             requests:
               cpu: 250m
@@ -64,47 +59,42 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
-          
           livenessProbe:
             httpGet:
               path: /health
               port: 5000
             initialDelaySeconds: 10
             periodSeconds: 30
-          
           readinessProbe:
             httpGet:
               path: /health
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 10
-          
           volumeMounts:
             - name: app-code
-              mountPath: /app
+              mountPath: /app/app.py
+              subPath: app.py
+            - name: app-code
+              mountPath: /app/requirements.txt
+              subPath: requirements.txt
+            - name: templates
+              mountPath: /app/templates/index.html
+              subPath: index.html
             - name: config
-              mountPath: /app/config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
             - name: packages
               mountPath: /app/packages
-            - name: region1-secret
-              mountPath: /app/secrets/rec-us-east-1
-              readOnly: true
-            - name: region2-secret
-              mountPath: /app/secrets/rec-us-west-2
-              readOnly: true
-      
       volumes:
         - name: app-code
           configMap:
             name: redis-monitoring-ui-code
+        - name: templates
+          configMap:
+            name: redis-monitoring-ui-templates
         - name: config
           configMap:
             name: redis-monitoring-ui-config
         - name: packages
           emptyDir: {}
-        - name: region1-secret
-          secret:
-            secretName: rec-us-east-1
-        - name: region2-secret
-          secret:
-            secretName: rec-us-west-2
