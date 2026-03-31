@@ -164,6 +164,105 @@ resource "kubernetes_ingress_v1" "redis_ui_non_tls" {
 }
 
 #==============================================================================
+# REDIS ENTERPRISE API INGRESS (TLS MODE)
+#==============================================================================
+# Exposes Redis Enterprise API (port 9443) via NGINX Ingress with SSL passthrough
+# Required for Active-Active (CRDB) cross-region communication
+# Only created when TLS mode is enabled and expose_api is true
+#==============================================================================
+
+resource "kubernetes_ingress_v1" "redis_api_tls" {
+  count = var.expose_api && var.enable_tls ? 1 : 0
+
+  metadata {
+    name      = "${var.redis_cluster_name}-api-ingress"
+    namespace = var.namespace
+
+    annotations = {
+      "nginx.ingress.kubernetes.io/ssl-passthrough"  = "true"
+      "nginx.ingress.kubernetes.io/backend-protocol" = "HTTPS"
+    }
+  }
+
+  spec {
+    ingress_class_name = "nginx"
+
+    rule {
+      host = var.api_fqdn
+
+      http {
+        path {
+          path      = "/"
+          path_type = "Prefix"
+
+          backend {
+            service {
+              name = "${var.redis_cluster_name}"
+              port {
+                number = 9443
+              }
+            }
+          }
+        }
+      }
+    }
+
+    tls {
+      hosts = [var.api_fqdn]
+    }
+  }
+
+  depends_on = [helm_release.nginx_ingress]
+}
+
+#==============================================================================
+# REDIS ENTERPRISE API INGRESS (NON-TLS MODE)
+#==============================================================================
+# Exposes Redis Enterprise API without TLS termination at ingress
+# SSL passthrough is used - NGINX forwards encrypted traffic to Redis Enterprise
+# The host field is required for proper routing and DNS resolution
+#==============================================================================
+
+resource "kubernetes_ingress_v1" "redis_api_non_tls" {
+  count = var.expose_api && !var.enable_tls ? 1 : 0
+
+  metadata {
+    name      = "${var.redis_cluster_name}-api-ingress"
+    namespace = var.namespace
+
+    annotations = {
+      "nginx.ingress.kubernetes.io/backend-protocol" = "HTTPS"
+      "nginx.ingress.kubernetes.io/ssl-passthrough"  = "true"
+    }
+  }
+
+  spec {
+    ingress_class_name = "nginx"
+
+    rule {
+      host = var.api_fqdn
+      http {
+        path {
+          path      = "/"
+          path_type = "Prefix"
+
+          backend {
+            service {
+              name = "${var.redis_cluster_name}"
+              port {
+                number = 9443
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [helm_release.nginx_ingress]
+}
+
+#==============================================================================
 # REDIS DATABASE SERVICES (TLS MODE)
 #==============================================================================
 # Updates database services to use standard port 443 with "redis" port name

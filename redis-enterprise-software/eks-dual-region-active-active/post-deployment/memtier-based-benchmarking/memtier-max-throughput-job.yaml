@@ -1,0 +1,157 @@
+---
+#==============================================================================
+# MEMTIER BENCHMARK MAXIMUM THROUGHPUT TEST
+#==============================================================================
+# High-load test to find maximum sustainable ops/sec
+# - 16 parallel pods (high concurrency)
+# - Target: ~500K+ ops/sec
+# - 70% reads / 30% writes
+# - 256-byte payload
+# - Pipeline=10 for maximum throughput
+# - 10-minute test duration
+#==============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: memtier-max-throughput
+  namespace: redis-enterprise
+  labels:
+    app: memtier-benchmark
+    test-type: max-throughput
+    workload: redis-crdb
+spec:
+  parallelism: 16
+  completions: 16
+  completionMode: Indexed
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 2
+  
+  template:
+    metadata:
+      labels:
+        app: memtier-max-throughput
+        job-name: memtier-max-throughput
+    spec:
+      restartPolicy: Never
+      
+      containers:
+      - name: memtier-benchmark
+        image: redislabs/memtier_benchmark:latest
+        
+        resources:
+          requests:
+            cpu: "4000m"
+            memory: "8Gi"
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"
+        
+        env:
+        - name: CRDB_NAME
+          value: ""
+        - name: REDIS_HOST
+          value: ""
+        - name: REDIS_PORT
+          value: ""
+        - name: JOB_COMPLETION_INDEX
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+        
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+
+          if [ -z "$CRDB_NAME" ]; then
+            echo "CRDB_NAME must be set"
+            exit 1
+          fi
+
+          SERVICE_ENV_PREFIX=$(echo "$CRDB_NAME" | tr '[:lower:]-.' '[:upper:]__')
+          HOST_VAR="${SERVICE_ENV_PREFIX}_SERVICE_HOST"
+          PORT_VAR="${SERVICE_ENV_PREFIX}_SERVICE_PORT"
+
+          if [ -z "$REDIS_HOST" ]; then
+            REDIS_HOST=$(eval "printf '%s' \"\${$HOST_VAR:-}\"")
+          fi
+
+          if [ -z "$REDIS_PORT" ]; then
+            REDIS_PORT=$(eval "printf '%s' \"\${$PORT_VAR:-}\"")
+          fi
+
+          if [ -z "$REDIS_HOST" ]; then
+            REDIS_HOST="${CRDB_NAME}.redis-enterprise.svc.cluster.local"
+          fi
+
+          if [ -z "$REDIS_PORT" ]; then
+            echo "Could not auto-discover Redis port for service $CRDB_NAME."
+            echo "Set REDIS_PORT explicitly if the service env var is unavailable."
+            exit 1
+          fi
+
+          POD_INDEX="${JOB_COMPLETION_INDEX:-0}"
+          if ! echo "$POD_INDEX" | grep -qE '^[0-9]+$'; then
+            echo "Invalid job completion index: $POD_INDEX"
+            exit 1
+          fi
+
+          echo "=========================================="
+          echo "Starting memtier_benchmark Max Throughput Test"
+          echo "Completion Index: $POD_INDEX"
+          echo "Target: $REDIS_HOST:$REDIS_PORT"
+          echo "Database Service: $CRDB_NAME"
+          echo "Focus: Maximum sustainable ops/sec"
+          echo "=========================================="
+          echo ""
+
+          KEYS_PER_POD=2000000
+          KEY_MIN=$((POD_INDEX * KEYS_PER_POD + 1))
+          KEY_MAX=$(((POD_INDEX + 1) * KEYS_PER_POD))
+
+          echo "Pod Index: $POD_INDEX"
+          echo "Key range: $KEY_MIN - $KEY_MAX"
+          echo ""
+
+          memtier_benchmark \
+            --server="$REDIS_HOST" \
+            --port="$REDIS_PORT" \
+            --protocol=redis \
+            --clients=100 \
+            --threads=8 \
+            --ratio=3:7 \
+            --data-size=256 \
+            --key-pattern=R:R \
+            --key-minimum="$KEY_MIN" \
+            --key-maximum="$KEY_MAX" \
+            --pipeline=10 \
+            --test-time=600 \
+            --print-percentiles=50,90,95,99,99.9 \
+            --run-count=1
+
+          EXIT_CODE=$?
+          
+          echo ""
+          echo "=========================================="
+          echo "Max throughput test completed: $EXIT_CODE"
+          echo "=========================================="
+          
+          exit $EXIT_CODE
+      
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - memtier-max-throughput
+              topologyKey: kubernetes.io/hostname

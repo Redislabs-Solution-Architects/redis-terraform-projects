@@ -1,0 +1,105 @@
+#==============================================================================
+# PROMETHEUS OPERATOR SERVICEMONITOR
+#==============================================================================
+# This ServiceMonitor tells Prometheus Operator to scrape metrics from
+# Redis Enterprise clusters
+# Based on: https://redis.io/docs/latest/operate/kubernetes/re-clusters/connect-prometheus-operator/
+#==============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-enterprise-metrics
+  namespace: redis-enterprise
+  labels:
+    app: redis-enterprise
+    release: prometheus  # Must match Prometheus Operator release name
+spec:
+  # Scraping configuration
+  endpoints:
+    - port: prometheus  # Port name from the Redis Enterprise service
+      interval: 15s     # Scrape every 15 seconds
+      scheme: https     # Redis Enterprise uses HTTPS for metrics
+      tlsConfig:
+        # Skip TLS verification (Redis Enterprise uses self-signed certs)
+        insecureSkipVerify: true
+      
+      # Optional: Add relabeling rules
+      relabelings:
+        # Add cluster name label
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: kubernetes_namespace
+        
+        # Add pod name label
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: kubernetes_pod_name
+        
+        # Add node name label
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: kubernetes_node_name
+      
+      # Optional: Metric relabeling (filter/rename metrics)
+      # metricRelabelings:
+      #   # Keep only specific metrics (example)
+      #   - sourceLabels: [__name__]
+      #     regex: 'bdb_.*|node_.*|listener_.*'
+      #     action: keep
+  
+  # Namespace selector - which namespaces to search for services
+  namespaceSelector:
+    matchNames:
+      - redis-enterprise  # Only look in redis-enterprise namespace
+  
+  # Service selector - which services to scrape
+  selector:
+    matchLabels:
+      redis.io/service: prom-metrics  # Label added by Redis Enterprise Operator
+
+---
+#==============================================================================
+# NOTES:
+#==============================================================================
+# 1. This ServiceMonitor will automatically discover Redis Enterprise clusters
+#    in the redis-enterprise namespace
+#
+# 2. The service label "redis.io/service: prom-metrics" is automatically added
+#    by the Redis Enterprise Operator to the metrics service
+#
+# 3. Verify the service exists:
+#    kubectl get svc -n redis-enterprise -l redis.io/service=prom-metrics
+#
+# 4. The service is typically named: <rec-name>-prom
+#
+# 5. After applying, verify in Prometheus UI:
+#    - Port-forward: kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
+#    - Open: http://localhost:9090
+#    - Go to: Status -> Targets
+#    - Look for: redis-enterprise/redis-enterprise-metrics
+#
+# 6. If Prometheus is in a different namespace, you may need to add:
+#    serviceMonitorNamespaceSelector to the Prometheus resource
+#
+# 7. Common metrics to query:
+#    - bdb_total_req: Total requests per database
+#    - bdb_used_memory: Memory used by database
+#    - node_available_memory: Available memory on node
+#    - bdb_conns: Number of connections to database
+#    - bdb_evicted_objects: Number of evicted objects
+#
+#==============================================================================
+# CROSS-NAMESPACE MONITORING (if Prometheus is in different namespace):
+#==============================================================================
+# If your Prometheus Operator is in the "monitoring" namespace and you want
+# it to discover ServiceMonitors in "redis-enterprise" namespace, you need to
+# configure the Prometheus resource:
+#
+# kubectl patch prometheus -n monitoring prometheus-kube-prometheus-prometheus --type=merge -p '
+# spec:
+#   serviceMonitorNamespaceSelector: {}
+#   serviceMonitorSelector: {}
+# '
+#
+# This allows Prometheus to discover ServiceMonitors in all namespaces.
+# The default behavior only looks in the same namespace as Prometheus.
+#==============================================================================
+

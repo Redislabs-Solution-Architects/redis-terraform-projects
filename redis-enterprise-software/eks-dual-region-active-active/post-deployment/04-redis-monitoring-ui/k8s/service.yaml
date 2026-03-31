@@ -1,0 +1,19 @@
+#==============================================================================
+# REDIS MONITORING UI SERVICE
+#==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-monitoring-ui
+  namespace: redis-enterprise
+  labels:
+    app: redis-monitoring-ui
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5000
+      targetPort: 5000
+      protocol: TCP
+      name: http
+  selector:
+    app: redis-monitoring-ui

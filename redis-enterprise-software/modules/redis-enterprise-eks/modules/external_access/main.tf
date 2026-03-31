@@ -65,6 +65,11 @@ module "nginx_ingress_access" {
   redis_ui_service_name = var.redis_ui_service_name
   expose_ui             = var.expose_redis_ui
 
+  # Redis Enterprise API (for Active-Active)
+  redis_cluster_name = var.redis_cluster_name
+  expose_api         = var.expose_redis_api
+  api_fqdn           = var.redis_api_fqdn
+
   # Redis Enterprise Databases
   redis_db_services = var.redis_db_services
   expose_databases  = var.expose_redis_databases

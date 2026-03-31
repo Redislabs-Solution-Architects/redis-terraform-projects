@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redis Enterprise Continuous Availability Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "SF Pro Display", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(27, 137, 255, 0.18), transparent 30%),
+                radial-gradient(circle at top right, rgba(255, 140, 66, 0.18), transparent 30%),
+                linear-gradient(135deg, #09203f 0%, #1f3b73 45%, #f2f6ff 45%, #f7f3ea 100%);
+            color: #10213b;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .container {
+            margin: 0 auto;
+            max-width: 1700px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 18px;
+            box-shadow: 0 24px 50px rgba(10, 32, 63, 0.18);
+            margin-bottom: 24px;
+            padding: 26px 32px;
+        }
+
+        h1 {
+            color: #0d3b66;
+            font-size: 30px;
+            margin-bottom: 10px;
+        }
+
+        .subhead {
+            color: #4c5d78;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .top-row {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            justify-content: space-between;
+            margin-top: 18px;
+        }
+
+        .controls {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .controls label {
+            color: #355070;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .controls select {
+            background: #ffffff;
+            border: 2px solid #8fb8de;
+            border-radius: 999px;
+            color: #143b63;
+            font-size: 14px;
+            padding: 8px 14px;
+        }
+
+        .status-controls {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .refresh-now {
+            background: #ffffff;
+            border: 2px solid #8fb8de;
+            border-radius: 999px;
+            color: #0f5fb2;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 800;
+            padding: 8px 14px;
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .refresh-now:hover {
+            box-shadow: 0 12px 24px rgba(15, 95, 178, 0.14);
+            transform: translateY(-1px);
+        }
+
+        .hero-metrics {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: 22px;
+        }
+
+        .hero-card,
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            border-radius: 18px;
+            box-shadow: 0 18px 40px rgba(9, 32, 63, 0.12);
+            padding: 24px;
+        }
+
+        .hero-card small {
+            color: #6b7b93;
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .hero-card .value {
+            color: #0d3b66;
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .hero-card .hint {
+            color: #5d708d;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .status-badge {
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            padding: 7px 12px;
+            text-transform: uppercase;
+        }
+
+        .status-primary,
+        .status-healthy {
+            background: #d7f7e7;
+            color: #0d8a4f;
+        }
+
+        .status-failed-over,
+        .status-warning {
+            background: #fff2cf;
+            color: #b56b00;
+        }
+
+        .status-failed-back {
+            background: #d9ebff;
+            color: #0f5fb2;
+        }
+
+        .status-error,
+        .status-unavailable {
+            background: #ffe2e2;
+            color: #be1e2d;
+        }
+
+        .main-layout {
+            display: grid;
+            gap: 24px;
+            grid-template-columns: minmax(0, 1.5fr) minmax(360px, 0.9fr);
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            background: rgba(255, 255, 255, 0.88);
+            border: 2px solid #c9dbef;
+            border-radius: 999px;
+            color: #36567c;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            padding: 10px 18px;
+            transition: all 0.2s ease;
+        }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #0f5fb2, #3e8be0);
+            border-color: transparent;
+            color: #ffffff;
+            box-shadow: 0 12px 24px rgba(15, 95, 178, 0.2);
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .grid {
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            border-bottom: 2px solid #dbe7f4;
+            color: #0d3b66;
+            font-size: 19px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+        }
+
+        .metric {
+            align-items: flex-start;
+            border-bottom: 1px solid #ebf1f8;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #60718a;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .metric-value {
+            color: #10213b;
+            font-size: 14px;
+            font-weight: 800;
+            text-align: right;
+        }
+
+        .section-copy {
+            color: #5d708d;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 18px;
+        }
+
+        .demo-actions {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-bottom: 20px;
+        }
+
+        .demo-actions button {
+            border: none;
+            border-radius: 14px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            min-height: 56px;
+            padding: 12px 16px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .demo-actions button:hover:not(:disabled) {
+            box-shadow: 0 16px 28px rgba(9, 32, 63, 0.18);
+            transform: translateY(-2px);
+        }
+
+        .demo-actions button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #0d8a4f, #1ab86f);
+        }
+
+        .btn-prepare {
+            background: linear-gradient(135deg, #6b7280, #94a3b8);
+        }
+
+        .btn-blackout {
+            background: linear-gradient(135deg, #be1e2d, #ed5a5a);
+        }
+
+        .btn-restore {
+            background: linear-gradient(135deg, #0f5fb2, #3e8be0);
+        }
+
+        .btn-reset {
+            background: linear-gradient(135deg, #4c5d78, #7787a1);
+        }
+
+        .demo-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-bottom: 18px;
+        }
+
+        .demo-stat {
+            background: #f5f9ff;
+            border-radius: 14px;
+            padding: 14px;
+        }
+
+        .demo-stat small {
+            color: #6c7e95;
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .demo-stat strong {
+            color: #123a62;
+            display: block;
+            font-size: 20px;
+            line-height: 1.3;
+        }
+
+        .event-log {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        .event-log-toolbar {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .event-log-toolbar .hint {
+            color: #5d708d;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .event-log-toolbar .actions {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+        }
+
+        .event-log-pause {
+            background: #eef5ff;
+            border: 1px solid #c8dbf2;
+            border-radius: 999px;
+            color: #18456f;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 7px 12px;
+            white-space: nowrap;
+        }
+
+        .event-log-resume {
+            background: #ffffff;
+            border: 1px solid #8fb8de;
+            border-radius: 999px;
+            color: #0f5fb2;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 7px 12px;
+        }
+
+        .event-entry {
+            background: #f7fbff;
+            border-left: 4px solid #8fb8de;
+            border-radius: 10px;
+            cursor: pointer;
+            padding: 12px 14px;
+            transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .event-entry:hover {
+            box-shadow: 0 10px 22px rgba(9, 32, 63, 0.12);
+            transform: translateY(-1px);
+        }
+
+        .event-entry.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .event-entry.error {
+            border-left-color: #dc2626;
+        }
+
+        .event-entry.paused {
+            background: #edf5ff;
+            border-left-color: #0f5fb2;
+            box-shadow: 0 16px 28px rgba(15, 95, 178, 0.16);
+        }
+
+        .event-meta {
+            color: #6b7b93;
+            display: flex;
+            font-size: 11px;
+            font-weight: 700;
+            gap: 10px;
+            letter-spacing: 0.04em;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .event-message {
+            color: #143b63;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .event-detail {
+            color: #5d708d;
+            font-size: 12px;
+            margin-top: 6px;
+            word-break: break-word;
+        }
+
+        .timestamp {
+            color: #6b7b93;
+            font-size: 12px;
+            margin-top: 10px;
+            text-align: right;
+        }
+
+        .loading,
+        .empty-state {
+            color: #6b7b93;
+            padding: 28px 12px;
+            text-align: center;
+        }
+
+        .error {
+            background: #ffe7e7;
+            border-radius: 10px;
+            color: #be1e2d;
+            padding: 14px;
+        }
+
+        .detail-strip {
+            background: linear-gradient(135deg, #eff6ff, #f8fafc);
+            border: 1px solid #dbe7f4;
+            border-radius: 14px;
+            color: #395270;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 18px;
+            padding: 14px 16px;
+        }
+
+        .detail-strip strong {
+            color: #123a62;
+        }
+
+        @media (max-width: 1280px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .hero-metrics,
+            .grid,
+            .demo-grid,
+            .demo-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Continuous Availability Demo</h1>
+            <p class="subhead">
+                Monitoring the dual-region Redis Enterprise deployment while running a real redis-py failover client
+                that prefers Region 1 and automatically fails over to Region 2 during a simulated Region 1 outage.
+            </p>
+            <div class="top-row">
+                <div class="controls">
+                    <label for="refresh-interval">Auto-Refresh</label>
+                    <select id="refresh-interval">
+                        <option value="1">1 second</option>
+                        <option value="3">3 seconds</option>
+                        <option value="5" {% if config.refresh_interval == 5 %}selected{% endif %}>5 seconds</option>
+                        <option value="10">10 seconds</option>
+                        <option value="30">30 seconds</option>
+                        <option value="60">60 seconds</option>
+                        <option value="0">Disabled</option>
+                    </select>
+                </div>
+                <div class="status-controls">
+                    <button id="btn-refresh-now" type="button" class="refresh-now">Refresh now</button>
+                    <span id="last-update" class="status-badge status-healthy">Live</span>
+                </div>
+            </div>
+            <div class="hero-metrics">
+                <div class="hero-card">
+                    <small>Database</small>
+                    <div class="value">{{ config.database_name }}</div>
+                    <div class="hint">Preferred region: {{ config.failover.preferred_region }}</div>
+                </div>
+                <div class="hero-card">
+                    <small>Redis Endpoints</small>
+                    <div class="value">{{ config.regions.region1.redis_display_endpoint or config.regions.region1.redis_endpoint }}</div>
+                    <div class="hint">Fallback: {{ config.regions.region2.redis_display_endpoint or config.regions.region2.redis_endpoint }}</div>
+                </div>
+                <div class="hero-card">
+                    <small>Health Check</small>
+                    <div class="value">{{ "Lag-Aware" if config.failover.use_lag_aware_health_check else "Ping" }}</div>
+                    <div class="hint">Auto failback every {{ config.failover.auto_fallback_interval_seconds }}s</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="tab-bar">
+            <button id="tab-monitoring" class="tab-button active" data-tab="monitoring">Monitoring Overview</button>
+            <button id="tab-demo" class="tab-button" data-tab="demo">Redis Client Failover Demo</button>
+        </div>
+
+        <div id="panel-monitoring" class="tab-panel active">
+            <div class="grid">
+                <div class="card">
+                    <h2>Region 1 Cluster</h2>
+                    <div id="region1-cluster" class="loading">Loading...</div>
+                </div>
+                <div class="card">
+                    <h2>Region 2 Cluster</h2>
+                    <div id="region2-cluster" class="loading">Loading...</div>
+                </div>
+                <div class="card">
+                    <h2>Region 1 Database</h2>
+                    <div id="region1-database" class="loading">Loading...</div>
+                </div>
+                <div class="card">
+                    <h2>Region 2 Database</h2>
+                    <div id="region2-database" class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Active-Active CRDB Status</h2>
+                <div id="crdb-status" class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div id="panel-demo" class="tab-panel">
+            <div class="main-layout">
+                <div>
+                    <div class="card" style="margin-bottom: 20px;">
+                    <h2>Redis Client Failover Demo</h2>
+                    <p class="section-copy">
+                        This flow writes and reads a synthetic key through a single redis-py `MultiDBClient`.
+                        {% if config.demo.get('outage_mode') == 'infrastructure' %}
+                        Use the controls to prepare and simulate a Region 1 network outage for this laptop's client path only. The Redis deployment itself stays healthy.
+                        {% else %}
+                        Use the controls to simulate a Region 1 outage for this app instance only. The Redis deployment itself is left untouched.
+                        {% endif %}
+                    </p>
+                    <div class="detail-strip">
+                        <strong>Demo key:</strong> <span id="demo-key">Loading...</span><br>
+                        <strong>Workload cadence:</strong> {{ config.demo.workload_interval_seconds }}s synthetic set/get cycle
+                    </div>
+                    <div class="demo-actions">
+                        <button id="btn-prepare-outage" class="btn-prepare">Prepare Network Outage Demo</button>
+                        <button id="btn-start-demo" class="btn-start">Start Demo</button>
+                        <button id="btn-simulate-outage" class="btn-blackout">Simulate Region 1 Outage</button>
+                        <button id="btn-restore-region1" class="btn-restore">Restore Region 1</button>
+                        <button id="btn-reset-demo" class="btn-reset">Reset Demo</button>
+                    </div>
+                    <div id="demo-summary" class="demo-grid">
+                        <div class="demo-stat">
+                            <small>Active Region</small>
+                            <strong id="demo-active-region">Loading...</strong>
+                        </div>
+                        <div class="demo-stat">
+                            <small>Failover State</small>
+                            <strong id="demo-state">Loading...</strong>
+                        </div>
+                        <div class="demo-stat">
+                            <small>Last Successful Operation</small>
+                            <strong id="demo-last-success">Loading...</strong>
+                        </div>
+                        <div class="demo-stat">
+                            <small>Blackout Flags</small>
+                            <strong id="demo-blackouts">None</strong>
+                        </div>
+                        <div class="demo-stat">
+                            <small>Outage Mode</small>
+                            <strong id="demo-outage-mode">Loading...</strong>
+                        </div>
+                        <div class="demo-stat">
+                            <small>Infra Demo Status</small>
+                            <strong id="demo-infra-status">Loading...</strong>
+                        </div>
+                    </div>
+                    <div id="demo-endpoint" class="detail-strip">Resolving active Redis endpoint...</div>
+                    <div id="demo-failover-summary" class="demo-grid"></div>
+                    <div id="demo-metrics" class="demo-grid"></div>
+                </div>
+                </div>
+
+                <div>
+                    <div class="card">
+                        <h2>Demo Event Log</h2>
+                        <p class="section-copy">
+                            Event history records client initialization, simulated outage actions, failover/failback transitions,
+                            and any workload errors reported by the redis-py failover path.
+                        </p>
+                        <div class="event-log-toolbar">
+                            <div class="hint">
+                                Click any event to pause log scrolling while the rest of the dashboard keeps updating.
+                                Retention: last {{ config.demo.get('event_log_retention', 600) }} events.
+                            </div>
+                            <div class="actions">
+                                <div id="event-log-pause-status" class="event-log-pause">Live updates enabled</div>
+                                <button id="event-log-resume" type="button" class="event-log-resume" disabled>Resume now</button>
+                            </div>
+                        </div>
+                        <div id="demo-events" class="event-log">
+                            <div class="empty-state">Waiting for demo activity...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let refreshInterval = {{ config.refresh_interval }};
+        let intervalId = null;
+        let eventLogPaused = false;
+        let eventLogSelectedId = '';
+
+        function formatBytes(bytes) {
+            if (!bytes) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const index = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${(bytes / Math.pow(1024, index)).toFixed(2)} ${units[index]}`;
+        }
+
+        function formatNumber(value) {
+            return new Intl.NumberFormat().format(value || 0);
+        }
+
+        function badgeClass(status) {
+            if (!status) return 'status-warning';
+            const normalized = status.toLowerCase();
+            if (normalized.includes('active') || normalized.includes('healthy') || normalized.includes('valid')) {
+                return 'status-healthy';
+            }
+            if (normalized.includes('fail') || normalized.includes('error') || normalized.includes('invalid')) {
+                return 'status-error';
+            }
+            return 'status-warning';
+        }
+
+        function formatTimestamp(value) {
+            if (!value) return 'N/A';
+            return new Date(value).toLocaleTimeString();
+        }
+
+        function eventLogIsPaused() {
+            return eventLogPaused;
+        }
+
+        function clearEventLogPause() {
+            eventLogPaused = false;
+            eventLogSelectedId = '';
+            updateEventLogPauseState();
+        }
+
+        function updateEventLogPauseState() {
+            const status = document.getElementById('event-log-pause-status');
+            const resumeButton = document.getElementById('event-log-resume');
+            const activeEntry = document.querySelector('.event-entry.paused');
+
+            if (eventLogIsPaused()) {
+                status.textContent = 'Paused on selected event';
+                resumeButton.disabled = false;
+                if (activeEntry) {
+                    activeEntry.classList.add('paused');
+                }
+                return;
+            }
+
+            status.textContent = 'Live updates enabled';
+            resumeButton.disabled = true;
+            if (activeEntry) {
+                activeEntry.classList.remove('paused');
+            }
+        }
+
+        function renderCluster(data, elementId) {
+            const element = document.getElementById(elementId);
+            if (data.cluster.error) {
+                element.innerHTML = `<div class="error">${data.cluster.error}</div>`;
+                return;
+            }
+
+            const cluster = data.cluster;
+            const nodeCount = Array.isArray(data.nodes) ? data.nodes.length : 0;
+            element.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="metric-value"><span class="status-badge ${badgeClass(cluster.status || 'healthy')}">${cluster.status || 'Healthy'}</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Nodes</span>
+                    <span class="metric-value">${nodeCount}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Version</span>
+                    <span class="metric-value">${cluster.software_version || 'N/A'}</span>
+                </div>
+                <div class="timestamp">Updated ${formatTimestamp(data.timestamp)}</div>
+            `;
+        }
+
+        function renderDatabase(data, elementId) {
+            const element = document.getElementById(elementId);
+            if (data.database.error) {
+                element.innerHTML = `<div class="error">${data.database.error}</div>`;
+                return;
+            }
+
+            const db = data.database;
+            element.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="metric-value"><span class="status-badge ${badgeClass(db.status)}">${db.status || 'Unknown'}</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Port</span>
+                    <span class="metric-value">${db.port || {{ config.redis.port }}}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory Used</span>
+                    <span class="metric-value">${formatBytes(db.memory_size)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Requests</span>
+                    <span class="metric-value">${formatNumber(Math.round(db.total_req || 0))}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Connections</span>
+                    <span class="metric-value">${formatNumber(db.conns || 0)}</span>
+                </div>
+                <div class="timestamp">Updated ${formatTimestamp(data.timestamp)}</div>
+            `;
+        }
+
+        function renderCRDB(data) {
+            const element = document.getElementById('crdb-status');
+            const region1 = data.regions.region1;
+            const region2 = data.regions.region2;
+
+            if (region1.error || region2.error) {
+                element.innerHTML = `<div class="error">Could not load CRDB status from both regions.</div>`;
+                return;
+            }
+
+            element.innerHTML = `
+                <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 0;">
+                    <div>
+                        <div class="metric">
+                            <span class="metric-label">Region 1 Status</span>
+                            <span class="metric-value"><span class="status-badge ${badgeClass(region1.status)}">${region1.status || 'Unknown'}</span></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Shards</span>
+                            <span class="metric-value">${region1.shards_count || 0}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Type</span>
+                            <span class="metric-value">${region1.type || 'N/A'}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="metric">
+                            <span class="metric-label">Region 2 Status</span>
+                            <span class="metric-value"><span class="status-badge ${badgeClass(region2.status)}">${region2.status || 'Unknown'}</span></span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Shards</span>
+                            <span class="metric-value">${region2.shards_count || 0}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Type</span>
+                            <span class="metric-value">${region2.type || 'N/A'}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="timestamp">Updated ${formatTimestamp(data.timestamp)}</div>
+            `;
+        }
+
+        function renderDemoMetrics(status) {
+            const metrics = document.getElementById('demo-metrics');
+            metrics.innerHTML = Object.entries(status.stats).map(([region, regionStats]) => `
+                <div class="demo-stat">
+                    <small>${region}</small>
+                    <strong>${regionStats.successes} success / ${regionStats.failures} failure</strong>
+                    <div class="hint" style="margin-top: 6px; color: #5d708d; font-size: 13px;">
+                        Last command: ${regionStats.last_command || 'N/A'}<br>
+                        Last key: ${regionStats.last_key || 'N/A'}<br>
+                        Last latency: ${regionStats.last_latency_ms !== null ? `${regionStats.last_latency_ms} ms` : 'N/A'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatDuration(value) {
+            if (value === null || value === undefined) return 'Pending';
+            return `${value} ms`;
+        }
+
+        function renderFailoverSummary(status) {
+            const summary = document.getElementById('demo-failover-summary');
+            const timing = status.timing_summary || {};
+            const metrics = status.failover_metrics || {};
+
+            summary.innerHTML = `
+                <div class="demo-stat">
+                    <small>Outage Started</small>
+                    <strong>${formatTimestamp(metrics.outage_started_at)}</strong>
+                    <div class="hint" style="margin-top: 6px; color: #5d708d; font-size: 13px;">
+                        First Region 1 failure: ${formatTimestamp(metrics.first_region1_failure_at)}
+                    </div>
+                </div>
+                <div class="demo-stat">
+                    <small>Failover Detection</small>
+                    <strong>${formatDuration(timing.outage_to_failover_detected_ms)}</strong>
+                    <div class="hint" style="margin-top: 6px; color: #5d708d; font-size: 13px;">
+                        First Region 2 success: ${formatDuration(timing.outage_to_region2_success_ms)}
+                    </div>
+                </div>
+                <div class="demo-stat">
+                    <small>Command Path</small>
+                    <strong>${status.last_write_key || 'No SET yet'}</strong>
+                    <div class="hint" style="margin-top: 6px; color: #5d708d; font-size: 13px;">
+                        Sequence: ${status.sequence || 0}<br>
+                        Last read value: ${status.last_read_value ? 'Received' : 'Pending'}
+                    </div>
+                </div>
+                <div class="demo-stat">
+                    <small>Failback Timing</small>
+                    <strong>${formatDuration(timing.restore_to_failback_detected_ms)}</strong>
+                    <div class="hint" style="margin-top: 6px; color: #5d708d; font-size: 13px;">
+                        Region 1 write after restore: ${formatDuration(timing.restore_to_region1_success_ms)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDemoEvents(status) {
+            const events = document.getElementById('demo-events');
+            if (eventLogIsPaused()) {
+                updateEventLogPauseState();
+                return;
+            }
+
+            if (!status.event_log || status.event_log.length === 0) {
+                events.innerHTML = '<div class="empty-state">Waiting for demo activity...</div>';
+                return;
+            }
+
+            events.innerHTML = status.event_log.map((event, index) => {
+                const eventId = `${event.timestamp || 'na'}-${event.event || 'event'}-${index}`;
+                const details = Object.entries(event.details || {})
+                    .filter(([, value]) => value !== '' && value !== null && value !== undefined)
+                    .map(([key, value]) => `${key}: ${value}`)
+                    .join(' · ');
+                return `
+                <div class="event-entry ${event.level}" data-event-id="${eventId}">
+                    <div class="event-meta">
+                        <span>${event.event}</span>
+                        <span>${formatTimestamp(event.timestamp)}</span>
+                    </div>
+                    <div class="event-message">${event.message}</div>
+                    <div class="event-detail">${details}</div>
+                </div>
+            `;
+            }).join('');
+
+            updateEventLogPauseState();
+        }
+
+        function renderDemoStatus(status) {
+            document.getElementById('demo-key').textContent = status.demo_key;
+            document.getElementById('demo-active-region').textContent = status.active_region || 'No active region yet';
+            document.getElementById('demo-state').innerHTML = `<span class="status-badge status-${status.state || 'warning'}">${status.state || 'idle'}</span>`;
+            document.getElementById('demo-last-success').textContent = formatTimestamp(status.last_success_at);
+            document.getElementById('demo-blackouts').textContent = status.outage_regions.length ? status.outage_regions.join(', ') : 'None';
+            document.getElementById('demo-outage-mode').textContent = status.outage_mode === 'infrastructure' ? 'Infrastructure' : 'App blackout';
+            document.getElementById('demo-infra-status').textContent = status.infrastructure_outage && status.infrastructure_outage.enabled
+                ? (status.infrastructure_outage.region1_outage_active ? 'Region 1 blocked' : (status.infrastructure_outage.prepared ? 'Prepared' : 'Not prepared'))
+                : 'Disabled';
+            document.getElementById('demo-endpoint').innerHTML = `
+                <strong>Active endpoint:</strong> ${status.active_endpoint || 'Pending client activity'}<br>
+                <strong>Last SET key:</strong> ${status.last_write_key || 'No successful SET yet'}<br>
+                <strong>Last value:</strong> ${status.last_read_value || 'No successful GET yet'}<br>
+                <strong>Last error:</strong> ${status.last_error || 'None'}<br>
+                <strong>Health check mode:</strong> ${status.health_check_mode}<br>
+                <strong>Startup policy:</strong> ${status.initial_health_check_policy}<br>
+                <strong>Client public IP:</strong> ${status.infrastructure_outage?.current_public_ip || 'N/A'}
+            `;
+
+            renderFailoverSummary(status);
+            renderDemoMetrics(status);
+            renderDemoEvents(status);
+
+            document.getElementById('btn-prepare-outage').disabled = status.infrastructure_outage?.enabled ? status.infrastructure_outage.prepared : true;
+            document.getElementById('btn-start-demo').disabled = status.demo_running;
+            document.getElementById('btn-simulate-outage').disabled = !status.demo_running || status.outage_regions.includes('region1') || (status.outage_mode === 'infrastructure' && !status.infrastructure_outage?.prepared);
+            document.getElementById('btn-restore-region1').disabled = !status.outage_regions.includes('region1');
+        }
+
+        async function postAction(url) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || `Request failed: ${response.status}`);
+            }
+            return payload;
+        }
+
+        function setLastUpdateBadge(text, className) {
+            const badge = document.getElementById('last-update');
+            badge.textContent = text;
+            badge.className = `status-badge ${className}`;
+        }
+
+        async function fetchDemoStatus() {
+            const response = await fetch('/api/demo/status');
+            const payload = await response.json();
+            renderDemoStatus(payload);
+            return payload;
+        }
+
+        async function fetchMonitoringData() {
+            const [region1Cluster, region2Cluster, region1DB, region2DB, crdb] = await Promise.all([
+                fetch('/api/cluster/region1').then((response) => response.json()),
+                fetch('/api/cluster/region2').then((response) => response.json()),
+                fetch('/api/database/region1').then((response) => response.json()),
+                fetch('/api/database/region2').then((response) => response.json()),
+                fetch('/api/crdb').then((response) => response.json())
+            ]);
+
+            renderCluster(region1Cluster, 'region1-cluster');
+            renderCluster(region2Cluster, 'region2-cluster');
+            renderDatabase(region1DB, 'region1-database');
+            renderDatabase(region2DB, 'region2-database');
+            renderCRDB(crdb);
+        }
+
+        async function fetchData() {
+            const results = await Promise.allSettled([
+                fetchDemoStatus(),
+                fetchMonitoringData()
+            ]);
+
+            if (results.some((result) => result.status === 'rejected')) {
+                const failure = results.find((result) => result.status === 'rejected');
+                console.error('Error fetching data', failure.reason);
+                setLastUpdateBadge('Error', 'status-error');
+                return;
+            }
+
+            setLastUpdateBadge('Live', 'status-healthy');
+        }
+
+        async function refreshDemoFirst() {
+            try {
+                await fetchDemoStatus();
+                setLastUpdateBadge('Live', 'status-healthy');
+            } catch (error) {
+                console.error('Error fetching demo status', error);
+                setLastUpdateBadge('Error', 'status-error');
+            }
+
+            fetchMonitoringData()
+                .then(() => setLastUpdateBadge('Live', 'status-healthy'))
+                .catch((error) => {
+                    console.error('Error fetching monitoring data', error);
+                    setLastUpdateBadge('Error', 'status-error');
+                });
+        }
+
+        document.getElementById('refresh-interval').addEventListener('change', (event) => {
+            refreshInterval = parseInt(event.target.value, 10);
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+            if (refreshInterval > 0) {
+                intervalId = setInterval(fetchData, refreshInterval * 1000);
+            }
+        });
+
+        document.getElementById('btn-refresh-now').addEventListener('click', async () => {
+            await refreshDemoFirst();
+        });
+
+        document.getElementById('btn-prepare-outage').addEventListener('click', async () => {
+            try {
+                const status = await postAction('/api/demo/prepare-infrastructure-outage');
+                renderDemoStatus(status);
+            } finally {
+                await refreshDemoFirst();
+            }
+        });
+
+        document.getElementById('btn-start-demo').addEventListener('click', async () => {
+            try {
+                const status = await postAction('/api/demo/start');
+                renderDemoStatus(status);
+            } finally {
+                await refreshDemoFirst();
+            }
+        });
+
+        document.getElementById('btn-simulate-outage').addEventListener('click', async () => {
+            try {
+                const status = await postAction('/api/demo/simulate-region1-outage');
+                renderDemoStatus(status);
+            } finally {
+                await refreshDemoFirst();
+            }
+        });
+
+        document.getElementById('btn-restore-region1').addEventListener('click', async () => {
+            try {
+                const status = await postAction('/api/demo/restore-region1');
+                renderDemoStatus(status);
+            } finally {
+                await refreshDemoFirst();
+            }
+        });
+
+        document.getElementById('btn-reset-demo').addEventListener('click', async () => {
+            try {
+                const status = await postAction('/api/demo/reset');
+                renderDemoStatus(status);
+                clearEventLogPause();
+            } finally {
+                await refreshDemoFirst();
+            }
+        });
+
+        document.getElementById('demo-events').addEventListener('click', (event) => {
+            const entry = event.target.closest('.event-entry');
+            if (!entry) {
+                return;
+            }
+
+            document.querySelectorAll('.event-entry.paused').forEach((item) => item.classList.remove('paused'));
+            entry.classList.add('paused');
+            eventLogSelectedId = entry.dataset.eventId || '';
+            eventLogPaused = true;
+            updateEventLogPauseState();
+        });
+
+        document.getElementById('event-log-resume').addEventListener('click', async () => {
+            clearEventLogPause();
+            await refreshDemoFirst();
+        });
+
+        document.querySelectorAll('.tab-button').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.tab-button').forEach((item) => item.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.remove('active'));
+
+                button.classList.add('active');
+                document.getElementById(`panel-${button.dataset.tab}`).classList.add('active');
+            });
+        });
+
+        updateEventLogPauseState();
+        fetchData();
+        if (refreshInterval > 0) {
+            intervalId = setInterval(fetchData, refreshInterval * 1000);
+        }
+    </script>
+</body>
+</html>

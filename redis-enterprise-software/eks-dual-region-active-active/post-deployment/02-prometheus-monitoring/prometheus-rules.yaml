@@ -1,0 +1,175 @@
+#==============================================================================
+# PROMETHEUS ALERTING RULES FOR REDIS ENTERPRISE
+#==============================================================================
+# This PrometheusRule defines alerts for Redis Enterprise monitoring
+# Deploy to the same namespace as your Prometheus Operator
+#==============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: redis-enterprise-alerts
+  namespace: monitoring  # Change to match your Prometheus namespace
+  labels:
+    app: redis-enterprise
+    release: prometheus  # Must match Prometheus Operator release name
+spec:
+  groups:
+    - name: redis-enterprise-cluster
+      interval: 30s
+      rules:
+        # Cluster node down
+        - alert: RedisEnterpriseNodeDown
+          expr: up{job="redis-enterprise-metrics"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Redis Enterprise node is down"
+            description: "Redis Enterprise node {{ $labels.kubernetes_pod_name }} has been down for more than 5 minutes."
+        
+        # High memory usage on node
+        - alert: RedisEnterpriseNodeHighMemory
+          expr: (1 - (node_available_memory / node_provisional_memory)) * 100 > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis Enterprise node high memory usage"
+            description: "Node {{ $labels.node }} memory usage is above 90% (current: {{ $value }}%)"
+        
+        # High CPU usage on node
+        - alert: RedisEnterpriseNodeHighCPU
+          expr: node_cpu_utilization > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis Enterprise node high CPU usage"
+            description: "Node {{ $labels.node }} CPU usage is above 90% (current: {{ $value }}%)"
+    
+    - name: redis-enterprise-database
+      interval: 30s
+      rules:
+        # Database down
+        - alert: RedisEnterpriseDatabaseDown
+          expr: bdb_up == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Redis Enterprise database is down"
+            description: "Database {{ $labels.bdb }} has been down for more than 5 minutes."
+        
+        # High memory usage on database
+        - alert: RedisEnterpriseDatabaseHighMemory
+          expr: (bdb_used_memory / bdb_memory_limit) * 100 > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis Enterprise database high memory usage"
+            description: "Database {{ $labels.bdb }} memory usage is above 90% (current: {{ $value }}%)"
+        
+        # High eviction rate
+        - alert: RedisEnterpriseDatabaseHighEvictions
+          expr: rate(bdb_evicted_objects[5m]) > 100
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis Enterprise database high eviction rate"
+            description: "Database {{ $labels.bdb }} is evicting more than 100 objects/sec (current: {{ $value }}/sec)"
+        
+        # Low hit rate
+        - alert: RedisEnterpriseDatabaseLowHitRate
+          expr: |
+            (
+              rate(bdb_keyspace_hits[5m]) / 
+              (rate(bdb_keyspace_hits[5m]) + rate(bdb_keyspace_misses[5m]))
+            ) * 100 < 80
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis Enterprise database low hit rate"
+            description: "Database {{ $labels.bdb }} hit rate is below 80% (current: {{ $value }}%)"
+        
+        # High connection count
+        - alert: RedisEnterpriseDatabaseHighConnections
+          expr: bdb_conns > 10000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis Enterprise database high connection count"
+            description: "Database {{ $labels.bdb }} has more than 10,000 connections (current: {{ $value }})"
+        
+        # High latency
+        - alert: RedisEnterpriseDatabaseHighLatency
+          expr: bdb_avg_latency > 10
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis Enterprise database high latency"
+            description: "Database {{ $labels.bdb }} average latency is above 10ms (current: {{ $value }}ms)"
+    
+    - name: redis-enterprise-replication
+      interval: 30s
+      rules:
+        # Replication lag (for CRDB)
+        - alert: RedisEnterpriseCRDBHighReplicationLag
+          expr: bdb_crdt_syncer_ingress_bytes_decompressed_lag > 1000000  # 1MB lag
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis Enterprise CRDB high replication lag"
+            description: "CRDB {{ $labels.bdb }} has replication lag above 1MB (current: {{ $value }} bytes)"
+        
+        # Replication status
+        - alert: RedisEnterpriseCRDBReplicationDown
+          expr: bdb_crdt_syncer_status != 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Redis Enterprise CRDB replication is down"
+            description: "CRDB {{ $labels.bdb }} replication to {{ $labels.peer_cluster }} is not active"
+
+---
+#==============================================================================
+# DEPLOYMENT INSTRUCTIONS:
+#==============================================================================
+# 1. Update the namespace to match your Prometheus Operator installation
+#    (default is "monitoring")
+#
+# 2. Update the "release" label to match your Prometheus Operator release name
+#    (default is "prometheus")
+#
+# 3. Deploy the rules:
+#    kubectl apply -f prometheus-rules.yaml
+#
+# 4. Verify rules are loaded:
+#    kubectl get prometheusrule -n monitoring
+#
+# 5. Check in Prometheus UI:
+#    - Port-forward: kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
+#    - Open: http://localhost:9090
+#    - Go to: Alerts
+#    - You should see the Redis Enterprise alerts listed
+#
+#==============================================================================
+# CUSTOMIZATION:
+#==============================================================================
+# Adjust thresholds based on your requirements:
+# - Memory usage threshold: Currently 90%
+# - CPU usage threshold: Currently 90%
+# - Eviction rate: Currently 100 objects/sec
+# - Hit rate: Currently 80%
+# - Connection count: Currently 10,000
+# - Latency: Currently 10ms
+# - Replication lag: Currently 1MB
+#==============================================================================
+

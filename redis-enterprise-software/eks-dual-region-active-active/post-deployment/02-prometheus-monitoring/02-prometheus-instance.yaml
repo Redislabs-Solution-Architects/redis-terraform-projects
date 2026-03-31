@@ -1,0 +1,166 @@
+#==============================================================================
+# PROMETHEUS INSTANCE
+#==============================================================================
+# Defines a Prometheus instance that will scrape Redis Enterprise metrics
+# This Prometheus instance runs in the 'monitoring' namespace and is configured
+# to discover ServiceMonitors in the 'redis-enterprise' namespace
+#==============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app: prometheus
+    prometheus: main
+spec:
+  # Replica configuration for high availability
+  replicas: 2
+  
+  # Service account for Prometheus pods
+  serviceAccountName: prometheus
+  
+  # ServiceMonitor selection - discover ServiceMonitors across all namespaces
+  serviceMonitorSelector:
+    matchLabels:
+      release: prometheus  # Must match the label in servicemonitor.yaml
+  
+  # Allow Prometheus to discover ServiceMonitors in any namespace
+  # This is critical for cross-namespace monitoring
+  serviceMonitorNamespaceSelector: {}
+  
+  # PodMonitor selection (optional, for future use)
+  podMonitorSelector: {}
+  podMonitorNamespaceSelector: {}
+  
+  # PrometheusRule selection - for alert rules
+  ruleSelector:
+    matchLabels:
+      release: prometheus
+  ruleNamespaceSelector: {}
+  
+  # Resource requests and limits
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 500m
+    limits:
+      memory: 4Gi
+      cpu: 2000m
+  
+  # Storage configuration
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
+        # storageClassName: gp3  # Uncomment and adjust for your storage class
+  
+  # Data retention
+  retention: 15d
+  retentionSize: 45GB
+  
+  # Security context
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  
+  # Enable admin API for management
+  enableAdminAPI: false
+  
+  # Scrape configuration
+  scrapeInterval: 15s
+  evaluationInterval: 15s
+  
+  # External labels (useful for federation or remote write)
+  externalLabels:
+    cluster: eks-redis-enterprise
+    environment: production
+
+---
+#==============================================================================
+# PROMETHEUS SERVICE ACCOUNT
+#==============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+
+---
+#==============================================================================
+# PROMETHEUS CLUSTER ROLE
+#==============================================================================
+# Allows Prometheus to discover and scrape targets across namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  # Access to endpoints, services, and pods for service discovery
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  
+  # Access to ingresses for discovery
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+  
+  # Access to config maps
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["get"]
+
+---
+#==============================================================================
+# PROMETHEUS CLUSTER ROLE BINDING
+#==============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
+
+---
+#==============================================================================
+# PROMETHEUS SERVICE
+#==============================================================================
+# Exposes Prometheus UI and API
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app: prometheus
+spec:
+  type: ClusterIP
+  ports:
+    - name: web
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: prometheus
+    prometheus: main
+

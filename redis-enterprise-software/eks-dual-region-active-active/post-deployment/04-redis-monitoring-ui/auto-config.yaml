@@ -1,0 +1,30 @@
+# Auto-generated configuration from Terraform state
+# DO NOT EDIT - regenerated on each deployment
+
+deployment_region: region1
+namespace: redis-enterprise
+refresh_interval: 5
+database_name: micron-crdb-prod
+
+regions:
+  region1:
+    name: us-east-1
+    api_endpoint: api.region1.redis.micron.internal
+    api_port: 9443
+    secret_name: rec-us-east-1
+    context: region1
+  
+  region2:
+    name: us-east-2
+    api_endpoint: api.region2.redis.micron.internal
+    api_port: 9443
+    secret_name: redis-enterprise-region2-remote
+    context: region2
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

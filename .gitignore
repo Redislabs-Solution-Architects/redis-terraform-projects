@@ -51,6 +51,9 @@ terraform.rc
 .env
 .env.*
 
+# OS files
+.DS_Store
+
 # Generated configuration files (from monitoring module)
 modules/redis_enterprise_monitoring/generated/*.yml
 modules/redis_enterprise_monitoring/generated/*.yaml

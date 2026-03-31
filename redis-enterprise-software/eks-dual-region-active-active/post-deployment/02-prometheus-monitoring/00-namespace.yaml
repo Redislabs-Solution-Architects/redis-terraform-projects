@@ -1,0 +1,15 @@
+#==============================================================================
+# MONITORING NAMESPACE
+#==============================================================================
+# Creates a dedicated namespace for the Prometheus monitoring stack
+# This keeps monitoring components separate from Redis Enterprise
+#==============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    app: prometheus-stack
+

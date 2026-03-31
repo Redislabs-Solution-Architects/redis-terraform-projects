@@ -133,7 +133,7 @@ resource "aws_security_group" "redis_enterprise" {
     from_port   = 10000
     to_port     = 19999
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"] # Allow within VPC
+    cidr_blocks = [var.vpc_cidr]  # ✅ Use variable instead
   }
 
   # Redis database ports for external access

@@ -1,0 +1,27 @@
+# EXAMPLE ONLY - DO NOT USE DIRECTLY
+# This file is for reference only. The actual deployment uses deploy-crdb.sh
+# which generates the manifest dynamically from config.env
+#
+# To deploy CRDB, run:
+#   cd post-deployment/01-active-active-crdb
+#   ./deploy-crdb.sh
+
+apiVersion: app.redislabs.com/v1alpha1
+kind: RedisEnterpriseActiveActiveDatabase
+metadata:
+  name: ${PROJECT_PREFIX}-crdb-production  # Example: acme-crdb-production
+  namespace: redis-enterprise
+spec:
+  participatingClusters:
+    - name: ${PROJECT_PREFIX}-r1-rec-${REGION1}  # Example: acme-r1-rec-us-east-1
+    - name: ${PROJECT_PREFIX}-r2-rec-${REGION2}  # Example: acme-r2-rec-us-east-2
+
+  globalConfigurations:
+    evictionPolicy: volatile-lru
+    memorySize: 150GB
+    ossCluster: false
+    persistence: aofEverySecond
+    replication: true
+    shardCount: 6
+    type: redis
+

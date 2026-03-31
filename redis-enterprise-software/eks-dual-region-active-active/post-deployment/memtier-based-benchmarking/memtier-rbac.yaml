@@ -1,0 +1,49 @@
+---
+#==============================================================================
+# RBAC Configuration for Memtier Benchmark Job
+#==============================================================================
+# This allows the memtier job to discover the database service port dynamically
+# by querying the Kubernetes API.
+#
+# Apply this ONCE before running the memtier job:
+#   kubectl apply -f memtier-rbac.yaml
+#==============================================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: memtier-benchmark
+  namespace: redis-enterprise
+  labels:
+    app: memtier-benchmark
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: memtier-service-reader
+  namespace: redis-enterprise
+  labels:
+    app: memtier-benchmark
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: memtier-service-reader-binding
+  namespace: redis-enterprise
+  labels:
+    app: memtier-benchmark
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: memtier-service-reader
+subjects:
+- kind: ServiceAccount
+  name: memtier-benchmark
+  namespace: redis-enterprise
+

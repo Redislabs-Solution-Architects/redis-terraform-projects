@@ -8,6 +8,16 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "vpc_cidr" {
+  description = "VPC CIDR block for internal traffic"
+  type        = string
+  
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "VPC CIDR must be valid CIDR notation."
+  }
+}
+
 variable "allow_ssh_from" {
   description = "List of CIDRs allowed to SSH and access Redis Enterprise UI"
   type        = list(string)

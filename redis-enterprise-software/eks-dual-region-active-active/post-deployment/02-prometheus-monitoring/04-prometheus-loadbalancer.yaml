@@ -1,0 +1,99 @@
+#==============================================================================
+# PROMETHEUS LOADBALANCER SERVICE (OPTIONAL)
+#==============================================================================
+# This creates a LoadBalancer service to expose Prometheus externally
+# Use this to allow Grafana in one region to query Prometheus in another region
+#
+# IMPORTANT SECURITY NOTES:
+# 1. This exposes Prometheus to the internet - use with caution!
+# 2. For production, consider:
+#    - Using internal LoadBalancer (AWS annotation)
+#    - Adding authentication (OAuth proxy, AWS ALB with Cognito)
+#    - Restricting source IPs via security groups
+#    - Using VPC peering instead of public exposure
+#==============================================================================
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-external
+  namespace: monitoring
+  annotations:
+    # Use internal LoadBalancer (recommended for production)
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    
+    # Optional: Restrict to specific subnets
+    # service.beta.kubernetes.io/aws-load-balancer-subnets: "subnet-xxxxx,subnet-yyyyy"
+    
+    # Optional: Add tags
+    service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: "Environment=production,Service=prometheus"
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: external-access
+spec:
+  type: LoadBalancer
+  ports:
+    - name: web
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: prometheus
+    prometheus: prometheus
+
+---
+#==============================================================================
+# ALTERNATIVE: NODEPORT SERVICE (for VPC Peering scenarios)
+#==============================================================================
+# If you have VPC peering between regions, you can use NodePort instead
+# This is more secure as it doesn't create a LoadBalancer
+#==============================================================================
+
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: prometheus-nodeport
+#   namespace: monitoring
+#   labels:
+#     app.kubernetes.io/name: prometheus
+#     app.kubernetes.io/component: external-access
+# spec:
+#   type: NodePort
+#   ports:
+#     - name: web
+#       port: 9090
+#       targetPort: 9090
+#       nodePort: 30090  # Fixed port for easier security group configuration
+#       protocol: TCP
+#   selector:
+#     app.kubernetes.io/name: prometheus
+#     prometheus: prometheus
+
+---
+#==============================================================================
+# SECURITY GROUP CONFIGURATION NOTES
+#==============================================================================
+# After creating the LoadBalancer service, you need to configure security groups:
+#
+# 1. Get the LoadBalancer security group:
+#    LB_SG=$(aws elbv2 describe-load-balancers \
+#      --query "LoadBalancers[?contains(LoadBalancerName, 'prometheus')].SecurityGroups[0]" \
+#      --output text --region <region>)
+#
+# 2. Allow access from the other region's VPC CIDR or specific IPs:
+#    aws ec2 authorize-security-group-ingress \
+#      --group-id $LB_SG \
+#      --protocol tcp \
+#      --port 9090 \
+#      --cidr <other-region-vpc-cidr> \
+#      --region <region>
+#
+# 3. Or restrict to specific Grafana pod IPs (more secure but complex)
+#
+# For internal LoadBalancer:
+# - The LoadBalancer will only be accessible within the VPC
+# - Use VPC peering to allow cross-region access
+# - This is the recommended approach for production
+#==============================================================================
+

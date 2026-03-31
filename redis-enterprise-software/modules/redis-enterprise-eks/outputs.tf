@@ -123,6 +123,16 @@ output "redis_database_port" {
   value       = module.redis_database.database_port
 }
 
+output "rec_name" {
+  description = "Name of the Redis Enterprise Cluster"
+  value       = module.redis_cluster.rec_name
+}
+
+output "api_loadbalancer_dns" {
+  description = "DNS name of the API LoadBalancer"
+  value       = module.redis_cluster.api_loadbalancer_dns
+}
+
 #==============================================================================
 # STORAGE OUTPUTS
 #==============================================================================

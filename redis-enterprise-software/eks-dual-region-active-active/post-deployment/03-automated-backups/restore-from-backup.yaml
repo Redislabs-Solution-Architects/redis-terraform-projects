@@ -1,0 +1,123 @@
+#==============================================================================
+# RESTORE DATABASE FROM S3 BACKUP
+#==============================================================================
+# This example shows how to restore a database from an S3 backup
+#==============================================================================
+
+apiVersion: app.redislabs.com/v1alpha1
+kind: RedisEnterpriseDatabase
+metadata:
+  name: restored-database
+  namespace: redis-enterprise
+spec:
+  # Reference to the Redis Enterprise cluster
+  redisEnterpriseCluster:
+    name: micron-r1-rec  # Update with your REC name
+  
+  # Database configuration (should match the original database)
+  memorySize: 10GB
+  databaseType: redis
+  databasePort: 12001  # Use a different port than the original
+  replication: true
+  persistence: aofEverySecond
+  
+  # Restore from backup
+  restore:
+    # S3 backup location
+    s3:
+      # S3 bucket name
+      bucketName: micron-redis-backups
+      
+      # Full path to the backup file
+      # Get this from: aws s3 ls s3://micron-redis-backups/region1/production-db/ --recursive
+      path: region1/production-db/backup-2024-03-05-02-00-00.rdb.gz
+      
+      # AWS region (optional, auto-detected)
+      # awsRegion: us-east-1
+      
+      # Authentication (use IRSA or access keys)
+      # credentialsSecretName: redis-backup-s3-credentials
+  
+  # Service type
+  databaseServiceType: ClusterIP
+  
+  # Eviction policy
+  evictionPolicy: volatile-lru
+
+---
+#==============================================================================
+# RESTORE PROCESS:
+#==============================================================================
+# 1. List available backups:
+#    aws s3 ls s3://micron-redis-backups/region1/production-db/ --recursive --profile eks_micron
+#
+# 2. Choose the backup file you want to restore
+#
+# 3. Update the 'path' field above with the full path to the backup file
+#
+# 4. Deploy the restore database:
+#    kubectl apply -f restore-from-backup.yaml --context region1
+#
+# 5. Wait for the database to be ready:
+#    kubectl wait --for=condition=Ready redb/restored-database -n redis-enterprise --timeout=600s --context region1
+#
+# 6. Verify the data:
+#    kubectl get redb restored-database -n redis-enterprise --context region1
+#    # Connect and verify data is present
+#
+# 7. (Optional) Rename the database or migrate traffic to the restored database
+#
+#==============================================================================
+# NOTES:
+#==============================================================================
+# 1. Restore creates a NEW database with the backup data
+#    - It does NOT overwrite the existing database
+#    - Use a different port to avoid conflicts
+#
+# 2. Restore time depends on backup size:
+#    - 1GB backup: ~1-2 minutes
+#    - 10GB backup: ~5-10 minutes
+#    - 100GB backup: ~30-60 minutes
+#
+# 3. The restored database will have:
+#    - All keys and values from the backup
+#    - Same database configuration (modules, settings)
+#    - Different endpoint (new port)
+#
+# 4. After restore, you can:
+#    - Test the restored data
+#    - Switch application traffic to the restored database
+#    - Delete the old database if no longer needed
+#
+# 5. For CRDB (Active-Active):
+#    - Restore to a regular database first
+#    - Then create a new CRDB and migrate data
+#    - Or restore in both regions and recreate CRDB links
+#
+#==============================================================================
+# DISASTER RECOVERY SCENARIO:
+#==============================================================================
+# If you lose the entire cluster and need to restore:
+#
+# 1. Deploy a new Redis Enterprise cluster
+#
+# 2. Create a database with restore configuration (this file)
+#
+# 3. Wait for restore to complete
+#
+# 4. Update application connection strings
+#
+# 5. Resume operations
+#
+# Recovery Time Objective (RTO):
+#   - Cluster deployment: ~15-20 minutes
+#   - Database restore: ~5-60 minutes (depends on size)
+#   - Total: ~20-80 minutes
+#
+# Recovery Point Objective (RPO):
+#   - Depends on backup interval
+#   - 6-hour backups: Up to 6 hours of data loss
+#   - 1-hour backups: Up to 1 hour of data loss
+#
+#==============================================================================
+

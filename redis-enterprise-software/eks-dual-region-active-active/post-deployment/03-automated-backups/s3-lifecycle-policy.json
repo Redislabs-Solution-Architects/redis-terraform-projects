@@ -1,0 +1,35 @@
+{
+  "Rules": [
+    {
+      "Id": "DeleteOldBackupsAfter30Days",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": ""
+      },
+      "Expiration": {
+        "Days": 30
+      },
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 7
+      }
+    },
+    {
+      "Id": "TransitionToGlacierAfter7Days",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": ""
+      },
+      "Transitions": [
+        {
+          "Days": 7,
+          "StorageClass": "GLACIER_IR"
+        },
+        {
+          "Days": 30,
+          "StorageClass": "DEEP_ARCHIVE"
+        }
+      ]
+    }
+  ]
+}
+

@@ -155,6 +155,45 @@ resource "aws_security_group_rule" "node_redis_enterprise_mdns" {
   description       = "Allow mDNS traffic for Redis Enterprise"
 }
 
+# =============================================================================
+# ACTIVE-ACTIVE (CRDB) REPLICATION PORTS
+# =============================================================================
+# These ports are CRITICAL for Redis Enterprise Active-Active database
+# replication and coordination between clusters in different regions
+
+# Allow Redis Enterprise shard replication ports (CRITICAL for Active-Active data sync)
+resource "aws_security_group_rule" "node_redis_enterprise_replication" {
+  type              = "ingress"
+  from_port         = 20000
+  to_port           = 29999
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.node_group.id
+  description       = "Allow Redis Enterprise shard replication (Active-Active CRDB)"
+}
+
+# Allow Redis Enterprise cluster coordination (CRITICAL for cluster communication)
+resource "aws_security_group_rule" "node_redis_enterprise_coordination" {
+  type              = "ingress"
+  from_port         = 3333
+  to_port           = 3356
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.node_group.id
+  description       = "Allow Redis Enterprise cluster coordination"
+}
+
+# Allow Redis Enterprise CRDB coordination (CRITICAL for Active-Active)
+resource "aws_security_group_rule" "node_redis_enterprise_crdb" {
+  type              = "ingress"
+  from_port         = 9081
+  to_port           = 9081
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.node_group.id
+  description       = "Allow Redis Enterprise CRDB coordination (Active-Active)"
+}
+
 #==============================================================================
 # LAUNCH TEMPLATE
 #==============================================================================
@@ -187,6 +226,28 @@ resource "aws_launch_template" "node_group" {
       var.tags,
       {
         Name = "${var.cluster_name}-node"
+      }
+    )
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+
+    tags = merge(
+      var.tags,
+      {
+        Name = "${var.cluster_name}-node-root"
+      }
+    )
+  }
+
+  tag_specifications {
+    resource_type = "network-interface"
+
+    tags = merge(
+      var.tags,
+      {
+        Name = "${var.cluster_name}-node-eni"
       }
     )
   }

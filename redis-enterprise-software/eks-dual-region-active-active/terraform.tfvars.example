@@ -8,7 +8,7 @@
 # REGIONS
 #------------------------------------------------------------------------------
 region1 = "us-east-1"
-region2 = "us-west-2"
+region2 = "us-east-2"
 
 region1_vpc_cidr = "10.1.0.0/16"
 region2_vpc_cidr = "10.2.0.0/16"
@@ -20,11 +20,11 @@ region2_availability_zones = []
 #------------------------------------------------------------------------------
 # BASIC CONFIGURATION
 #------------------------------------------------------------------------------
-user_prefix = "ba"
+user_prefix = "mahee"
 cluster_name = "redis-enterprise"
 project = "redis-dual-region"
 environment = "dev"
-owner = "brandon"
+owner = "mahee_gunturu"
 
 #------------------------------------------------------------------------------
 # NETWORK CONFIGURATION
@@ -33,14 +33,34 @@ enable_nat_gateway = true
 single_nat_gateway = false  # Use one NAT per AZ for HA
 
 #------------------------------------------------------------------------------
-# EKS CONFIGURATION (same for both regions)
+# EKS CONFIGURATION (shared defaults for both regions)
 #------------------------------------------------------------------------------
 eks_cluster_version = "1.31"
-node_instance_types = ["m5.xlarge"]
-node_desired_size = 3
-node_min_size = 3
-node_max_size = 6
-node_disk_size = 100
+node_instance_types = ["r7i.8xlarge"]  # Default instance type for both regions
+node_desired_size   = 3
+node_min_size       = 3
+node_max_size       = 6
+node_disk_size      = 100
+
+#------------------------------------------------------------------------------
+# REGION-SPECIFIC EKS OVERRIDES (optional)
+#------------------------------------------------------------------------------
+# Uncomment to override EKS settings for specific regions
+# If not specified, the shared defaults above will be used
+
+# Region 1 (us-east-1) overrides
+# region1_node_instance_types = ["r7i.8xlarge"]
+# region1_node_desired_size   = 3
+# region1_node_min_size       = 3
+# region1_node_max_size       = 6
+# region1_node_disk_size      = 100
+
+# Region 2 (us-east-2) overrides - example with different configuration
+# region2_node_instance_types = ["r7i.4xlarge"]  # Smaller instances in region 2
+# region2_node_desired_size   = 5                # More nodes in region 2
+# region2_node_min_size       = 3
+# region2_node_max_size       = 10
+# region2_node_disk_size      = 200              # Larger disks in region 2
 
 #------------------------------------------------------------------------------
 # REDIS ENTERPRISE CONFIGURATION (same for both regions)

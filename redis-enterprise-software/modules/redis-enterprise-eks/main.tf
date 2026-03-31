@@ -34,10 +34,11 @@ locals {
   tags = merge(
     var.tags,
     {
-      Project     = var.project
-      Environment = var.environment
-      Owner       = var.owner
-      ClusterName = var.cluster_name
+      Project       = var.project
+      Environment   = var.environment
+      ClusterName   = var.cluster_name
+      owner         = var.owner
+      skip_deletion = "yes"
     }
   )
 }
@@ -315,6 +316,13 @@ module "external_access" {
   redis_ui_service_name = "${var.cluster_name}-ui"
   expose_redis_ui       = var.expose_redis_ui
 
+  # Redis Enterprise API (for Active-Active)
+  # NOTE: When ingressOrRouteSpec is configured in REC, the operator creates Ingresses automatically
+  # So we set expose_redis_api = false to avoid duplicate Ingress creation by Terraform
+  redis_cluster_name = var.cluster_name
+  expose_redis_api   = false  # Operator manages API Ingress via ingressOrRouteSpec
+  redis_api_fqdn     = var.redis_api_fqdn_url
+
   # Redis Enterprise Databases
   redis_db_services = var.create_sample_database ? {
     "${var.sample_db_name}" = {
@@ -344,13 +352,9 @@ module "external_access" {
 module "dns" {
   source = "./modules/dns"
 
-  # Only create DNS records if:
-  # 1. NGINX ingress is enabled
-  # 2. Ingress is enabled on REC
-  # 3. DNS hosted zone ID is provided
-  count = var.external_access_type == "nginx-ingress" && var.redis_enable_ingress && var.dns_hosted_zone_id != "" ? 1 : 0
+  count = var.create_dns_records ? 1 : 0
 
-  create_dns_records    = true
+  create_dns_records    = var.create_dns_records
   dns_hosted_zone_id    = var.dns_hosted_zone_id
   api_fqdn              = var.redis_api_fqdn_url
   db_wildcard_fqdn      = "*${var.redis_db_fqdn_suffix}"
@@ -408,4 +412,36 @@ module "bastion" {
   tags = local.tags
 
   depends_on = [module.eks, module.redis_database, module.external_access]
+}
+
+#==============================================================================
+# REDIS ENTERPRISE REMOTE CLUSTER (RERC) MANAGEMENT
+#==============================================================================
+# Creates RERCs for Active-Active (CRDB) replication across regions
+# Uses Route53 FQDNs for both API and database endpoints (required for SSL Passthrough)
+#==============================================================================
+
+module "rerc_management" {
+  source = "./modules/rerc_management"
+
+  count = var.enable_active_active ? 1 : 0
+
+  namespace = module.redis_operator.namespace
+
+  # Local RERC (always created when Active-Active is enabled)
+  create_local_rerc     = true
+  local_cluster_name    = var.cluster_name
+  local_api_fqdn        = var.local_api_fqdn
+  local_db_fqdn_suffix  = var.local_db_fqdn_suffix
+
+  # Remote RERC (created only if remote cluster is specified)
+  create_remote_rerc    = var.remote_cluster_name != ""
+  remote_cluster_name   = var.remote_cluster_name
+  remote_api_fqdn       = var.remote_api_fqdn
+  remote_db_fqdn_suffix = var.remote_db_fqdn_suffix
+
+  # Ensure cluster is ready before creating RERCs
+  cluster_ready = module.redis_cluster.cluster_ready
+
+  depends_on = [module.redis_cluster, module.external_access]
 }

@@ -1,0 +1,156 @@
+#==============================================================================
+# REDIS ENTERPRISE DATABASE WITH AUTOMATED BACKUPS
+#==============================================================================
+# This example shows how to create a database with automated backups to S3
+#==============================================================================
+
+apiVersion: app.redislabs.com/v1alpha1
+kind: RedisEnterpriseDatabase
+metadata:
+  name: production-db-with-backups
+  namespace: redis-enterprise
+spec:
+  # Reference to the Redis Enterprise cluster
+  redisEnterpriseCluster:
+    name: micron-r1-rec  # Update with your REC name
+  
+  # Database configuration
+  memorySize: 10GB
+  databaseType: redis
+  databasePort: 12000
+  replication: true
+  persistence: aofEverySecond
+  
+  # Backup configuration
+  backup:
+    # S3 backup location
+    s3:
+      # S3 bucket name
+      bucketName: micron-redis-backups
+      
+      # Path within the bucket (optional)
+      # This allows organizing backups by region/database
+      subdir: region1/production-db
+      
+      # AWS region where the bucket is located
+      # awsRegion: us-east-1  # Optional, auto-detected from bucket
+      
+      # Authentication method
+      # Option 1: Use IRSA (IAM Roles for Service Accounts) - RECOMMENDED
+      # No credentials needed, uses service account annotation
+      
+      # Option 2: Use access keys (not recommended)
+      # accessKeyId: <from-secret>
+      # secretAccessKey: <from-secret>
+      # credentialsSecretName: redis-backup-s3-credentials
+    
+    # Backup schedule
+    interval: 6h  # Options: 1h, 6h, 12h, 24h, or cron expression
+    
+    # Backup retention
+    # Keep backups for 7 days (168 hours)
+    # Note: S3 lifecycle policy can also manage retention
+    # retention: 168h
+  
+  # Service type for database access
+  databaseServiceType: ClusterIP
+  
+  # Eviction policy
+  evictionPolicy: volatile-lru
+
+---
+#==============================================================================
+# ALTERNATIVE: Using cron expression for backup schedule
+#==============================================================================
+# For more control over backup timing, use a cron expression:
+#
+# backup:
+#   s3:
+#     bucketName: micron-redis-backups
+#     subdir: region1/production-db
+#   # Run backups at 2 AM, 8 AM, 2 PM, 8 PM UTC
+#   interval: "0 2,8,14,20 * * *"
+#
+#==============================================================================
+
+---
+#==============================================================================
+# SERVICE ACCOUNT FOR IRSA (if using IAM Roles for Service Accounts)
+#==============================================================================
+# This service account should be created by eksctl with IRSA annotation
+# Verify it exists:
+# kubectl get sa redis-enterprise-backup -n redis-enterprise
+#
+# If it doesn't exist, create it:
+#
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: redis-enterprise-backup
+#   namespace: redis-enterprise
+#   annotations:
+#     eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>
+#
+#==============================================================================
+
+---
+#==============================================================================
+# NOTES:
+#==============================================================================
+# 1. Backup intervals:
+#    - 1h: Every hour (for critical data)
+#    - 6h: Every 6 hours (recommended for production)
+#    - 12h: Every 12 hours (for less critical data)
+#    - 24h: Daily (for development/staging)
+#    - Cron: Custom schedule (e.g., "0 2 * * *" for 2 AM daily)
+#
+# 2. Backup format:
+#    - RDB snapshot (point-in-time)
+#    - Compressed and encrypted
+#    - Includes database configuration
+#
+# 3. S3 path structure:
+#    s3://micron-redis-backups/region1/production-db/
+#      ├── backup-2024-03-05-02-00-00.rdb.gz
+#      ├── backup-2024-03-05-08-00-00.rdb.gz
+#      └── backup-2024-03-05-14-00-00.rdb.gz
+#
+# 4. Backup size:
+#    - Approximately 30-50% of database memory size (with compression)
+#    - Example: 10GB database → ~3-5GB backup file
+#
+# 5. Backup duration:
+#    - Depends on database size and network speed
+#    - Example: 10GB database → ~5-10 minutes
+#
+# 6. Cost estimation (S3 Standard):
+#    - Storage: $0.023/GB/month
+#    - 10GB database, 4 backups/day, 7 days retention
+#    - ~280GB total → ~$6.44/month
+#    - Use S3 Intelligent-Tiering or Glacier for cost savings
+#
+# 7. For CRDB (Active-Active databases):
+#    - Configure backups in BOTH regions
+#    - Use different S3 paths (region1/, region2/)
+#    - Backups are independent per region
+#
+#==============================================================================
+# DEPLOYMENT:
+#==============================================================================
+# 1. Create S3 bucket and IAM policy (see README.md)
+#
+# 2. Set up IRSA (see README.md)
+#
+# 3. Deploy this database:
+#    kubectl apply -f database-with-backups.yaml --context region1
+#
+# 4. Verify backup configuration:
+#    kubectl describe redb production-db-with-backups -n redis-enterprise --context region1
+#
+# 5. Wait for first backup (based on interval)
+#
+# 6. Check S3 for backup files:
+#    aws s3 ls s3://micron-redis-backups/region1/production-db/ --profile eks_micron
+#
+#==============================================================================
+

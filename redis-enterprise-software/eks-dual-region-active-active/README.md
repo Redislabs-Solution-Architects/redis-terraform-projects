@@ -2,15 +2,15 @@
 
 ## Overview
 
-This is a **production-ready, fully automated Active-Active deployment** that deploys Redis Enterprise across two AWS regions with VPC peering and Active-Active (CRDB) database configuration.
+This workflow deploys Redis Enterprise across two AWS regions with VPC peering and prepares the prerequisites for an Active-Active (CRDB) database.
 
 **Key Features:**
-- ✅ **100% Automated** - Zero manual intervention required
 - ✅ **Dual Region Deployment** - us-east-1 and us-west-2 (configurable)
 - ✅ **VPC Peering** - Automatic cross-region connectivity
-- ✅ **Active-Active (CRDB)** - Bidirectional replication with conflict resolution
+- ✅ **REC-first workflow** - `terraform apply` stops when both regional Redis Enterprise clusters are ready
+- ✅ **Post-license CRDB step** - Active-Active database creation happens only after manual license upload
 - ✅ **Dynamic Configuration** - All values extracted from `terraform.tfvars`
-- ✅ **Comprehensive Validation** - Automated testing at each deployment phase
+- ✅ **Repeatable scripts** - post-deployment scratch manifests are generated ephemerally
 - ✅ **DNS Automation** - Automatic Route53 DNS record management
 
 ## Architecture
@@ -45,28 +45,37 @@ cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your AWS account ID and configuration
 ```
 
-### 2. Deploy Infrastructure
+### 2. Deploy Infrastructure to REC Ready
 
 ```bash
 terraform init
-terraform apply -auto-approve
+terraform plan
+terraform apply
 ```
 
-### 3. Run Automated Deployment
+### 3. Upload Licenses and Run Post-Deployment
 
 ```bash
-cd deploy
-bash scripts/generate-values.sh
-bash scripts/deploy-all.sh
+./validate-config.sh
+
+# Verify both RECs are running, then upload the license in both admin UIs
+aws eks update-kubeconfig --region us-east-1 --name <region1-cluster> --alias region1
+aws eks update-kubeconfig --region us-east-2 --name <region2-cluster> --alias region2
+kubectl get rec -n redis-enterprise --context region1
+kubectl get rec -n redis-enterprise --context region2
+
+cd post-deployment
+source config.env
+./deploy-all.sh
 ```
 
-That's it! The deployment will:
+The end-to-end workflow will:
 - Deploy both Redis Enterprise Clusters
 - Configure VPC peering
 - Setup NGINX ingress
 - Create DNS records
-- Deploy Active-Active database
-- Test bidirectional replication
+- Stop for manual license upload in both admin UIs
+- Deploy the Active-Active database only after post-license checks pass
 
 **Total deployment time:** ~25-30 minutes
 
@@ -132,9 +141,17 @@ See `terraform.tfvars.example` for complete configuration options.
 - VPC Peering Connection
 - Route table entries for cross-region traffic
 - Remote Cluster References (RERCs)
+
+**Post-License:**
 - Active-Active Database (REAADB/CRDB)
 
 **Total Resources:** ~128 Terraform resources
+
+## Workflow Boundary
+
+`terraform apply` is successful when both EKS clusters, both RECs, ingress/DNS, and RERC prerequisites are ready.
+
+It does **not** create the REAADB. That step is intentionally separated because the Redis Enterprise license is uploaded manually through the admin UI after the clusters are running.
 
 ## Validation
 
@@ -154,11 +171,9 @@ bash scripts/validate-dns.sh values-region1.yaml
 # Validate RERC status
 bash scripts/validate-rerc.sh values-region1.yaml values-region2.yaml
 
-# Validate REAADB deployment
-bash scripts/validate-reaadb.sh values-region1.yaml
-
-# Test bidirectional replication
-bash scripts/validate-replication.sh values-region1.yaml values-region2.yaml
+# After licensing and post-deployment, validate the REAADB
+cd post-deployment/01-active-active-crdb
+./deploy-crdb.sh
 ```
 
 ## Troubleshooting
@@ -271,4 +286,3 @@ For issues or questions:
 - Check [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)
 - Review [deploy/CRDB-TROUBLESHOOTING.md](./deploy/CRDB-TROUBLESHOOTING.md)
 - Check operator logs: `kubectl logs -n redis-enterprise -l name=redis-enterprise-operator`
-

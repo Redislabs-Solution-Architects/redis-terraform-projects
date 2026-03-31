@@ -1,5 +1,5 @@
 output "cluster_name" {
-  description = "Name of the Redis Enterprise cluster"
+  description = "Name of the Redis Enterprise Cluster"
   value       = var.cluster_name
 }
 
@@ -14,6 +14,21 @@ output "admin_credentials_secret_name" {
 }
 
 output "node_count" {
-  description = "Number of nodes in the Redis Enterprise cluster"
+  description = "Number of Redis Enterprise nodes"
   value       = var.node_count
+}
+
+output "api_loadbalancer_dns" {
+  description = "DNS name of the API LoadBalancer (managed by ingress module)"
+  value       = ""
+}
+
+output "rec_name" {
+  description = "Name of the Redis Enterprise Cluster (REC)"
+  value       = var.cluster_name
+}
+
+output "cluster_ready" {
+  description = "Dependency output to ensure cluster is ready before creating dependent resources"
+  value       = time_sleep.wait_for_cluster.id
 }

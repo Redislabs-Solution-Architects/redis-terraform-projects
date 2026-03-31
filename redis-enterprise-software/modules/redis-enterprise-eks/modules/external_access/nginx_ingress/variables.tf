@@ -18,6 +18,24 @@ variable "expose_ui" {
   default     = false
 }
 
+variable "expose_api" {
+  description = "Expose Redis Enterprise API externally via NGINX Ingress (required for Active-Active)"
+  type        = bool
+  default     = false
+}
+
+variable "redis_cluster_name" {
+  description = "Name of the Redis Enterprise cluster (for API service name)"
+  type        = string
+  default     = ""
+}
+
+variable "api_fqdn" {
+  description = "Fully qualified domain name for Redis Enterprise API (e.g., api.region1.redis.example.com)"
+  type        = string
+  default     = ""
+}
+
 variable "redis_db_services" {
   description = "Map of Redis databases to expose externally"
   type = map(object({

@@ -7,37 +7,31 @@
 #------------------------------------------------------------------------------
 
 provider "aws" {
-  alias  = "region1"
-  region = var.region1
+  alias   = "region1"
+  region  = var.region1
+  profile = var.aws_profile
 
   default_tags {
     tags = merge(
+      local.common_tags,
       {
-        Project     = var.project
-        Environment = var.environment
-        ManagedBy   = "Terraform"
-        Owner       = var.owner
-        Region      = "region1"
-      },
-      var.tags
+        Region = "region1"
+      }
     )
   }
 }
 
 provider "aws" {
-  alias  = "region2"
-  region = var.region2
+  alias   = "region2"
+  region  = var.region2
+  profile = var.aws_profile
 
   default_tags {
     tags = merge(
+      local.common_tags,
       {
-        Project     = var.project
-        Environment = var.environment
-        ManagedBy   = "Terraform"
-        Owner       = var.owner
-        Region      = "region2"
-      },
-      var.tags
+        Region = "region2"
+      }
     )
   }
 }
@@ -61,7 +55,9 @@ provider "kubernetes" {
       "--cluster-name",
       module.region1.eks_cluster_name,
       "--region",
-      var.region1
+      var.region1,
+      "--profile",
+      var.aws_profile
     ]
   }
 }
@@ -81,7 +77,9 @@ provider "kubernetes" {
       "--cluster-name",
       module.region2.eks_cluster_name,
       "--region",
-      var.region2
+      var.region2,
+      "--profile",
+      var.aws_profile
     ]
   }
 }
@@ -106,7 +104,9 @@ provider "helm" {
         "--cluster-name",
         module.region1.eks_cluster_name,
         "--region",
-        var.region1
+        var.region1,
+        "--profile",
+        var.aws_profile
       ]
     }
   }
@@ -128,7 +128,9 @@ provider "helm" {
         "--cluster-name",
         module.region2.eks_cluster_name,
         "--region",
-        var.region2
+        var.region2,
+        "--profile",
+        var.aws_profile
       ]
     }
   }
@@ -154,7 +156,9 @@ provider "kubectl" {
       "--cluster-name",
       module.region1.eks_cluster_name,
       "--region",
-      var.region1
+      var.region1,
+      "--profile",
+      var.aws_profile
     ]
   }
 }
@@ -175,8 +179,9 @@ provider "kubectl" {
       "--cluster-name",
       module.region2.eks_cluster_name,
       "--region",
-      var.region2
+      var.region2,
+      "--profile",
+      var.aws_profile
     ]
   }
 }
-

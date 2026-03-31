@@ -1,0 +1,7 @@
+spec:
+  backup:
+    s3:
+      bucketName: micron-redis-backups
+      subdir: region1/sample-db
+    interval: 6h
+
