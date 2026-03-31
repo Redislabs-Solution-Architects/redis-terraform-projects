@@ -3,3 +3,4 @@ requests==2.31.0
 PyYAML==6.0.1
 kubernetes==28.1.0
 redis==7.3.0
+pybreaker==1.4.0

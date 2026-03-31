@@ -31,11 +31,56 @@ read_cfg() {
     local default_value="$2"
     python3 - "$CONFIG_FILE" "$path" "$default_value" <<'PY'
 import sys
-import yaml
 
 config_file, raw_path, default_value = sys.argv[1:]
-with open(config_file, "r", encoding="utf-8") as handle:
-    data = yaml.safe_load(handle) or {}
+
+
+def parse_scalar(raw_value):
+    value = raw_value.strip()
+    if not value:
+        return ""
+    if value.startswith(("'", '"')) and value.endswith(("'", '"')) and len(value) >= 2:
+        return value[1:-1]
+    lowered = value.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    return value
+
+
+def load_simple_yaml(path):
+    root = {}
+    stack = [(-1, root)]
+
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+
+            indent = len(line) - len(line.lstrip(" "))
+            stripped = line.strip()
+            if ":" not in stripped:
+                continue
+
+            key, raw_value = stripped.split(":", 1)
+            key = key.strip()
+            value = raw_value.strip()
+
+            while stack and indent <= stack[-1][0]:
+                stack.pop()
+
+            parent = stack[-1][1]
+            if value == "":
+                parent[key] = {}
+                stack.append((indent, parent[key]))
+            else:
+                parent[key] = parse_scalar(value)
+
+    return root
+
+
+data = load_simple_yaml(config_file)
 
 keys = [part for part in raw_path.split(".") if part]
 value = data
@@ -74,6 +119,16 @@ detect_monitoring_secret() {
     discovered="$(kubectl get secret -n "$NAMESPACE" --context "$context" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null | rg "${rec_name}$" | head -1 || true)"
     [ -n "$discovered" ] || fail "Could not find an API credential secret for $rec_name in context $context."
     echo "$discovered"
+}
+
+detect_remote_db_endpoint() {
+    local db_name="$1"
+    local context="$2"
+    local endpoint_ip
+
+    endpoint_ip="$(kubectl get endpoints "$db_name" -n "$NAMESPACE" --context "$context" -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null | head -1 || true)"
+    [ -n "$endpoint_ip" ] || fail "Could not determine a remote database endpoint IP for $db_name in context $context."
+    echo "$endpoint_ip"
 }
 
 echo ""
@@ -138,10 +193,12 @@ if kubectl get secret "${DATABASE_NAME}-password" -n "$NAMESPACE" --context "$DE
     DB_SECRET_NAME="${DATABASE_NAME}-password"
 fi
 
-REGION1_DB_ENDPOINT="${DATABASE_NAME}${REGION1_DB_SUFFIX}"
-REGION2_DB_ENDPOINT="${DATABASE_NAME}${REGION2_DB_SUFFIX}"
+REGION1_DB_ENDPOINT="${DATABASE_NAME}.${NAMESPACE}.svc.cluster.local"
+REGION2_DB_ENDPOINT="$(detect_remote_db_endpoint "$DATABASE_NAME" "$REGION2_CONTEXT")"
 REGION1_API_ENDPOINT="${REGION1_API_FQDN:-api.region1.${INGRESS_DOMAIN}}"
 REGION2_API_ENDPOINT="${REGION2_API_FQDN:-api.region2.${INGRESS_DOMAIN}}"
+REGION1_API_PORT="443"
+REGION2_API_PORT="443"
 
 PREFERRED_REGION="$(read_cfg 'failover.preferred_region' 'region1')"
 FAIL_WINDOW="$(read_cfg 'failover.failures_detection_window_seconds' '2')"
@@ -155,6 +212,8 @@ FAILOVER_ATTEMPTS="$(read_cfg 'failover.failover_attempts' '3')"
 FAILOVER_DELAY="$(read_cfg 'failover.failover_delay_seconds' '1')"
 GRACE_PERIOD="$(read_cfg 'failover.grace_period_seconds' '5')"
 COMMAND_RETRIES="$(read_cfg 'failover.command_retries' '1')"
+REDIS_CONNECT_TIMEOUT="$(read_cfg 'failover.redis_connect_timeout_seconds' '3')"
+REDIS_SOCKET_TIMEOUT="$(read_cfg 'failover.redis_socket_timeout_seconds' '3')"
 USE_LAG_AWARE="$(read_cfg 'failover.use_lag_aware_health_check' 'false')"
 LAG_TOLERANCE="$(read_cfg 'failover.lag_tolerance_ms' '100')"
 LAG_API_PORT="$(read_cfg 'failover.lag_aware_rest_api_port' '9443')"
@@ -175,8 +234,8 @@ echo -e "${BLUE}📦 Deployment Configuration:${NC}"
 echo "  Context: $DEPLOY_CONTEXT"
 echo "  Namespace: $NAMESPACE"
 echo "  Preferred Redis region: $PREFERRED_REGION"
-echo "  Region 1 Redis endpoint: $REGION1_DB_ENDPOINT:$DATABASE_PORT"
-echo "  Region 2 Redis endpoint: $REGION2_DB_ENDPOINT:$DATABASE_PORT"
+echo "  Region 1 Redis endpoint: $REGION1_DB_ENDPOINT:$DATABASE_PORT (in-cluster service)"
+echo "  Region 2 Redis endpoint: $REGION2_DB_ENDPOINT:$DATABASE_PORT (remote backend IP)"
 echo "  Region 1 API secret: $REGION1_SECRET"
 echo "  Region 2 API secret: $REGION2_SECRET"
 if [ -n "$DB_SECRET_NAME" ]; then
@@ -197,7 +256,7 @@ regions:
   region1:
     name: $AWS_REGION1
     api_endpoint: $REGION1_API_ENDPOINT
-    api_port: 9443
+    api_port: $REGION1_API_PORT
     monitoring_secret_name: $REGION1_SECRET
     redis_endpoint: $REGION1_DB_ENDPOINT
     redis_port: $DATABASE_PORT
@@ -206,7 +265,7 @@ regions:
   region2:
     name: $AWS_REGION2
     api_endpoint: $REGION2_API_ENDPOINT
-    api_port: 9443
+    api_port: $REGION2_API_PORT
     monitoring_secret_name: $REGION2_SECRET
     redis_endpoint: $REGION2_DB_ENDPOINT
     redis_port: $DATABASE_PORT
@@ -232,6 +291,8 @@ failover:
   failover_delay_seconds: $FAILOVER_DELAY
   grace_period_seconds: $GRACE_PERIOD
   command_retries: $COMMAND_RETRIES
+  redis_connect_timeout_seconds: $REDIS_CONNECT_TIMEOUT
+  redis_socket_timeout_seconds: $REDIS_SOCKET_TIMEOUT
   use_lag_aware_health_check: $USE_LAG_AWARE
   lag_tolerance_ms: $LAG_TOLERANCE
   lag_aware_rest_api_port: $LAG_API_PORT

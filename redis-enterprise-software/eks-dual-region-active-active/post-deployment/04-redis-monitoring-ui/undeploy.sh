@@ -30,10 +30,49 @@ source "$ENV_CONFIG"
 
 DEPLOYMENT_REGION="$(python3 - "$CONFIG_FILE" <<'PY'
 import sys
-import yaml
 
-with open(sys.argv[1], "r", encoding="utf-8") as handle:
-    data = yaml.safe_load(handle) or {}
+
+def parse_scalar(raw_value):
+    value = raw_value.strip()
+    if not value:
+        return ""
+    if value.startswith(("'", '"')) and value.endswith(("'", '"')) and len(value) >= 2:
+        return value[1:-1]
+    return value
+
+
+def load_simple_yaml(path):
+    root = {}
+    stack = [(-1, root)]
+
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+
+            indent = len(line) - len(line.lstrip(" "))
+            stripped = line.strip()
+            if ":" not in stripped:
+                continue
+
+            key, raw_value = stripped.split(":", 1)
+            key = key.strip()
+            value = raw_value.strip()
+
+            while stack and indent <= stack[-1][0]:
+                stack.pop()
+
+            parent = stack[-1][1]
+            if value == "":
+                parent[key] = {}
+                stack.append((indent, parent[key]))
+            else:
+                parent[key] = parse_scalar(value)
+
+    return root
+
+
+data = load_simple_yaml(sys.argv[1])
 
 print(data.get("deployment_region", "region1"))
 PY

@@ -21,6 +21,9 @@ post-deployment/config.env
 
 # Auto-generated monitoring UI config (created by deployment script)
 post-deployment/04-redis-monitoring-ui/auto-config.yaml
+post-deployment/04-redis-monitoring-ui/.venv/
+post-deployment/04-redis-monitoring-ui/**/__pycache__/
+post-deployment/04-redis-monitoring-ui/**/*.pyc
 
 # Generated monitoring YAML files (created by Terraform)
 post-deployment/02-prometheus-monitoring/generated/
@@ -75,3 +78,6 @@ post-deployment/01-active-active-crdb/reaadb.yaml
 post-deployment/01-active-active-crdb/region1-*.yaml
 post-deployment/01-active-active-crdb/region2-*.yaml
 post-deployment/01-active-active-crdb/diagnose-and-fix.sh
+
+# Local presentation assets
+post-deployment/Slide/
